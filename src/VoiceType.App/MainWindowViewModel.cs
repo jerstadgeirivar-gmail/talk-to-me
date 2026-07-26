@@ -29,6 +29,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private string _durationText = "00:00:00.0";
     private double _inputLevel;
     private bool _isRecording;
+    private bool _insertAfterTranscription;
     private string _transcriptText = string.Empty;
     private WindowTarget? _windowTarget;
     private RecordingResult? _lastRecording;
@@ -52,7 +53,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         _textInsertionService = textInsertionService;
         _outputPath = outputPath;
         _allowRecordOnly = allowRecordOnly;
-        _startRecordingCommand = new AsyncDelegateCommand(StartRecordingAsync, CanStartRecording);
+        _startRecordingCommand = new AsyncDelegateCommand(StartRecordingFromWindowAsync, CanStartRecording);
         _stopRecordingCommand = new AsyncDelegateCommand(StopRecordingAsync, () => IsRecording);
         _insertCommand = new AsyncDelegateCommand(InsertTranscriptAsync, CanInsertTranscript);
         _cancelCommand = new AsyncDelegateCommand(CancelRecordingAsync, () => IsRecording);
@@ -118,7 +119,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
 
     public ICommand DeletePendingCommand => _deletePendingCommand;
 
-    public void ToggleRecording()
+    public void ToggleRecording(bool insertAfterTranscription = false)
     {
         if (_stopRecordingCommand.CanExecute(null))
         {
@@ -126,7 +127,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         else if (_startRecordingCommand.CanExecute(null))
         {
-            _startRecordingCommand.Execute(null);
+            _insertAfterTranscription = insertAfterTranscription;
+            _ = StartRecordingAsync();
         }
     }
 
@@ -166,6 +168,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         _stateController.Current == DictationState.ReadyToInsert &&
         _windowTarget is not null &&
         !string.IsNullOrWhiteSpace(TranscriptText);
+
+    private Task StartRecordingFromWindowAsync()
+    {
+        _insertAfterTranscription = false;
+        return StartRecordingAsync();
+    }
 
     private async Task StartRecordingAsync()
     {
@@ -224,6 +232,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _stateController.TransitionTo(DictationState.Transcribing);
                 StatusText = "Transcribing";
                 await TranscribeRecordingAsync(result);
+                if (_insertAfterTranscription && CanInsertTranscript())
+                {
+                    await InsertTranscriptAsync();
+                }
             }
 
             _startRecordingCommand.RaiseCanExecuteChanged();
@@ -264,6 +276,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             StatusText = "Text inserted";
             File.Delete(_outputPath);
             _lastRecording = null;
+            _insertAfterTranscription = false;
             _startRecordingCommand.RaiseCanExecuteChanged();
         }
         else
@@ -284,6 +297,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         RecordingResult result = await _recordingService.StopAsync(_lifetimeCancellation.Token);
         File.Delete(result.FilePath);
         _lastRecording = null;
+        _insertAfterTranscription = false;
         _stateController.TransitionTo(DictationState.Cancelled);
         _stateController.TransitionTo(DictationState.Idle);
         DurationText = "00:00:00.0";
@@ -328,6 +342,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             _lastRecording = null;
         }
 
+        _insertAfterTranscription = false;
         if (_stateController.Current == DictationState.RecoverableFailure)
         {
             _stateController.TransitionTo(DictationState.Idle);

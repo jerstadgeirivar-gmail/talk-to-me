@@ -52,16 +52,25 @@
                                    AutomationProperties.AutomationId="AudioSourceText"
                                    AutomationProperties.Name="{Binding SourceText}" />
                     </StackPanel>
-                    <Button Width="118"
-                            Height="32"
-                            Margin="0,12,0,0"
-                            HorizontalAlignment="Left"
-                            Background="#FFFFFF"
-                            BorderBrush="#A7AEA9"
-                            Content="Settings"
-                            Click="OpenSettings"
-                            AutomationProperties.AutomationId="SettingsButton"
-                            AutomationProperties.Name="Open settings" />
+                    <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                        <Button Width="118"
+                                Height="32"
+                                Background="#FFFFFF"
+                                BorderBrush="#A7AEA9"
+                                Content="Settings"
+                                Click="OpenSettings"
+                                AutomationProperties.AutomationId="SettingsButton"
+                                AutomationProperties.Name="Open settings" />
+                        <Button Width="118"
+                                Height="32"
+                                Margin="8,0,0,0"
+                                Background="#FFFFFF"
+                                BorderBrush="#A7AEA9"
+                                Content="Hide to tray"
+                                Click="HideToTray"
+                                AutomationProperties.AutomationId="HideToTrayButton"
+                                AutomationProperties.Name="Hide VoiceType to the system tray" />
+                    </StackPanel>
                 </StackPanel>
 
                 <Border Grid.Row="1"

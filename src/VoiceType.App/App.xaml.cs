@@ -103,7 +103,10 @@ public partial class App : System.Windows.Application, IDisposable
     private void InitializeTray(MainWindowViewModel viewModel, MainWindow window)
     {
         System.Windows.Forms.ContextMenuStrip menu = new();
-        menu.Items.Add("Start/stop dictation", null, (_, _) => viewModel.ToggleRecording());
+        menu.Items.Add(
+            "Start/stop dictation",
+            null,
+            (_, _) => viewModel.ToggleRecording(insertAfterTranscription: true));
         menu.Items.Add("Cancel recording", null, (_, _) => viewModel.CancelCommand.Execute(null));
         menu.Items.Add("Retry pending transcription", null, (_, _) => viewModel.RetryCommand.Execute(null));
         menu.Items.Add("Delete pending audio", null, (_, _) => viewModel.DeletePendingCommand.Execute(null));

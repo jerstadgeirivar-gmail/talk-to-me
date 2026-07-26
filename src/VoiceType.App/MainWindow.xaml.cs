@@ -12,7 +12,8 @@ public partial class MainWindow : Window
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly ISecretStore _secretStore;
     private HwndSource? _windowSource;
-    private bool _isClosing;
+    private bool _closeRequested;
+    private bool _canClose;
 
     public MainWindow(
         MainWindowViewModel viewModel,
@@ -40,6 +41,8 @@ public partial class MainWindow : Window
 
     private void OpenSettings(object sender, RoutedEventArgs e) => ShowSettingsWindow();
 
+    private void HideToTray(object sender, RoutedEventArgs e) => Hide();
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -52,19 +55,28 @@ public partial class MainWindow : Window
         }
     }
 
-    protected override async void OnClosing(CancelEventArgs e)
+    protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_isClosing)
+        if (!_canClose)
         {
             e.Cancel = true;
-            _windowSource?.RemoveHook(ProcessWindowMessage);
-            _hotkeyService.Dispose();
-            await _viewModel.DisposeAsync();
-            _isClosing = true;
-            Close();
+            if (!_closeRequested)
+            {
+                _closeRequested = true;
+                _windowSource?.RemoveHook(ProcessWindowMessage);
+                _hotkeyService.Dispose();
+                _ = FinishClosingAsync();
+            }
         }
 
         base.OnClosing(e);
+    }
+
+    private async Task FinishClosingAsync()
+    {
+        await _viewModel.DisposeAsync();
+        _canClose = true;
+        await Dispatcher.BeginInvoke(Close);
     }
 
     private nint ProcessWindowMessage(
@@ -76,7 +88,7 @@ public partial class MainWindow : Window
     {
         if (message == _hotkeyService.WindowMessage && wordParameter == _hotkeyService.HotkeyId)
         {
-            _viewModel.ToggleRecording();
+            _viewModel.ToggleRecording(insertAfterTranscription: true);
             handled = true;
         }
 

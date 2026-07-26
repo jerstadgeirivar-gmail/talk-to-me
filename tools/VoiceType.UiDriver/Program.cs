@@ -30,7 +30,6 @@ const string sourceAutomationId = "AudioSourceText";
 const string expectedSource = "Diagnostic audio file";
 const string recordingStatus = "Recording";
 const string recordOnlyStatus = "Audio recording ready";
-const string transcriptionReadyStatus = "Transcript ready";
 const string insertionCompleteStatus = "Text inserted";
 const string transcriptAutomationId = "TranscriptTextBox";
 const string insertButtonAutomationId = "InsertButton";
@@ -150,7 +149,7 @@ try
         Keyboard.TypeSimultaneously([VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.F9]);
     }
 
-    string expectedStatus = insertionScenario ? transcriptionReadyStatus : recordOnlyStatus;
+    string expectedStatus = insertionScenario ? insertionCompleteStatus : recordOnlyStatus;
     AutomationElement status = WaitForElementName(
         window,
         statusAutomationId,
@@ -158,10 +157,14 @@ try
         liveAzureScenario ? TimeSpan.FromMinutes(2) : TimeSpan.FromSeconds(5));
     transcriptionStopwatch.Stop();
 
-    AssertEnabledState(button, expectedEnabled: !insertionScenario, "start button after recording");
+    AssertEnabledState(button, expectedEnabled: true, "start button after recording");
     AssertEnabledState(stopButton, expectedEnabled: false, "stop button after recording");
-    ValidateWaveFile(recordingPath);
-    long recordingBytes = new FileInfo(recordingPath).Length;
+    long recordingBytes = 0;
+    if (!insertionScenario)
+    {
+        ValidateWaveFile(recordingPath);
+        recordingBytes = new FileInfo(recordingPath).Length;
+    }
 
     bool exactInsertionMatch = false;
     int transcriptCharacters = 0;
@@ -195,14 +198,7 @@ try
         AutomationElement insertButton = window.FindFirstDescendant(
             condition => condition.ByAutomationId(insertButtonAutomationId))
             ?? throw new InvalidOperationException($"Button '{insertButtonAutomationId}' was not found.");
-        AssertEnabledState(insertButton, expectedEnabled: true, "insert button after transcription");
-        insertButton.AsButton().Invoke();
-        status = WaitForElementName(
-            window,
-            statusAutomationId,
-            insertionCompleteStatus,
-            TimeSpan.FromSeconds(8));
-        AssertEnabledState(insertButton, expectedEnabled: false, "insert button after insertion");
+        AssertEnabledState(insertButton, expectedEnabled: false, "insert button after automatic insertion");
 
         string insertedText = notepadEditor!.AsTextBox().Text;
         exactInsertionMatch = insertedText == displayedTranscript;
