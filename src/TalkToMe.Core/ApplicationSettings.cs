@@ -18,7 +18,7 @@ public sealed record ApplicationSettings
 
     public string TargetWindowPolicy { get; init; } = "OriginalTarget";
 
-    public string Hotkey { get; init; } = "Ctrl+Alt+F9";
+    public string Hotkey { get; init; } = "Win+<";
 
     public string DiagnosticLoggingLevel { get; init; } = "Information";
 }

@@ -5,10 +5,12 @@ namespace TalkToMe.App;
 public partial class SettingsWindow : Window
 {
     private readonly SettingsWindowViewModel _viewModel;
+    private readonly Func<string, bool> _applyHotkey;
 
-    public SettingsWindow(SettingsWindowViewModel viewModel)
+    public SettingsWindow(SettingsWindowViewModel viewModel, Func<string, bool> applyHotkey)
     {
         _viewModel = viewModel;
+        _applyHotkey = applyHotkey;
         InitializeComponent();
         DataContext = viewModel;
         Loaded += LoadSettings;
@@ -21,7 +23,10 @@ public partial class SettingsWindow : Window
 
     private async void SaveSettings(object sender, RoutedEventArgs e)
     {
-        bool saved = await _viewModel.SaveAsync(ApiKeyPasswordBox.Password, CancellationToken.None);
+        bool saved = await _viewModel.SaveAsync(
+            ApiKeyPasswordBox.Password,
+            _applyHotkey,
+            CancellationToken.None);
         if (saved)
         {
             ApiKeyPasswordBox.Clear();

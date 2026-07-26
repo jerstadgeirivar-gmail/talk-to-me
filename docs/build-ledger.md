@@ -62,7 +62,7 @@ Observed result: Both UI runs passed; storage tests passed; the real one-line re
 
 Evidence: `artifacts/validation/slice-e/run-2/` and `artifacts/validation/slice-e/run-3/`.
 
-Known limitation: Connection testing, microphone selection, configurable hotkey editing, and actual start-with-Windows registration remain future settings work. Azure endpoint/deployment are still unavailable locally.
+Known limitation: Connection testing, microphone selection, and actual start-with-Windows registration remain future settings work. Azure endpoint/deployment are still unavailable locally.
 
 Next slice: Complete lifecycle/recovery documentation, Windows CI, and a self-contained Release package smoke test.
 

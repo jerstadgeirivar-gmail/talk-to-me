@@ -73,6 +73,17 @@
                           IsChecked="{Binding ClipboardOnlyMode}"
                           AutomationProperties.AutomationId="ClipboardOnlyCheckBox" />
 
+                <TextBlock Margin="0,18,0,5" Text="Global hotkey" />
+                <TextBox Height="34"
+                         Padding="8,5"
+                         Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.AutomationId="HotkeyTextBox"
+                         AutomationProperties.Name="Global hotkey" />
+                <TextBlock Margin="0,5,0,0"
+                           Foreground="#5F5B53"
+                           Text="Examples: Win+&lt;, Ctrl+Alt+F9, Win+Shift+K. Changes apply when saved."
+                           TextWrapping="Wrap" />
+
                 <TextBlock Margin="0,18,0,0"
                            Foreground="#9A2E22"
                            Text="{Binding StatusText}"

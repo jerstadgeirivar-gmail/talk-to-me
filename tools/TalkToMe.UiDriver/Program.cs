@@ -125,7 +125,7 @@ try
     }
     else
     {
-        Keyboard.TypeSimultaneously([VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.F9]);
+        Keyboard.TypeSimultaneously([VirtualKeyShort.LWIN, (VirtualKeyShort)0xE2]);
     }
 
     WaitForElementName(window, statusAutomationId, recordingStatus, TimeSpan.FromSeconds(5));
@@ -146,7 +146,7 @@ try
     }
     else
     {
-        Keyboard.TypeSimultaneously([VirtualKeyShort.CONTROL, VirtualKeyShort.ALT, VirtualKeyShort.F9]);
+        Keyboard.TypeSimultaneously([VirtualKeyShort.LWIN, (VirtualKeyShort)0xE2]);
     }
 
     string expectedStatus = insertionScenario ? insertionCompleteStatus : recordOnlyStatus;

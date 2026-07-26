@@ -52,7 +52,7 @@ public partial class App : System.Windows.Application, IDisposable
                 ? null
                 : new AzureTranscriptionProvider(azureOptions);
         WindowsWindowTargetService windowTargetService = new(Environment.ProcessId);
-        WindowsGlobalHotkeyService hotkeyService = new();
+        WindowsGlobalHotkeyService hotkeyService = new(settings.Hotkey);
         string outputPath = options.OutputPath ?? CreatePendingAudioPath();
         MainWindowViewModel viewModel = new(
             audioSource,

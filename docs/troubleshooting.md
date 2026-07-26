@@ -6,7 +6,7 @@ Open **Innstillinger** and provide an HTTPS Azure endpoint and exact deployment 
 
 ## Hotkey unavailable
 
-Another application has registered `Ctrl+Alt+F9`. Close the conflicting application. Hotkey customization is not yet implemented.
+Another application may have registered the configured combination. Choose a different global hotkey in **Settings**, save, and restart TalkToMe.
 
 ## Text was not inserted
 

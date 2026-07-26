@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using TalkToMe.Core;
+using TalkToMe.Infrastructure;
 
 namespace TalkToMe.App;
 
@@ -16,6 +17,7 @@ public sealed class SettingsWindowViewModel(
     private bool _startWithWindows;
     private bool _clipboardOnlyMode;
     private string _targetWindowPolicy = "OriginalTarget";
+    private string _hotkey = "Win+<";
     private string _diagnosticLoggingLevel = "Information";
     private string _keyStatusText = "Not configured";
     private string _statusText = string.Empty;
@@ -76,6 +78,12 @@ public sealed class SettingsWindowViewModel(
         set => SetProperty(ref _diagnosticLoggingLevel, value);
     }
 
+    public string Hotkey
+    {
+        get => _hotkey;
+        set => SetProperty(ref _hotkey, value);
+    }
+
     public string KeyStatusText
     {
         get => _keyStatusText;
@@ -99,16 +107,26 @@ public sealed class SettingsWindowViewModel(
         StartWithWindows = settings.StartWithWindows;
         ClipboardOnlyMode = settings.ClipboardOnlyMode;
         TargetWindowPolicy = settings.TargetWindowPolicy;
+        Hotkey = settings.Hotkey;
         DiagnosticLoggingLevel = settings.DiagnosticLoggingLevel;
         KeyStatusText = await secretStore.HasSecretAsync(cancellationToken)
             ? "Configured"
             : "Not configured";
     }
 
-    public async Task<bool> SaveAsync(string replacementKey, CancellationToken cancellationToken)
+    public async Task<bool> SaveAsync(
+        string replacementKey,
+        Func<string, bool> applyHotkey,
+        CancellationToken cancellationToken)
     {
         if (!Validate())
         {
+            return false;
+        }
+
+        if (!applyHotkey(Hotkey.Trim()))
+        {
+            ShowHotkeyConflict();
             return false;
         }
 
@@ -122,6 +140,7 @@ public sealed class SettingsWindowViewModel(
             StartWithWindows = StartWithWindows,
             ClipboardOnlyMode = ClipboardOnlyMode,
             TargetWindowPolicy = TargetWindowPolicy,
+            Hotkey = Hotkey.Trim(),
             DiagnosticLoggingLevel = DiagnosticLoggingLevel,
         };
         await settingsStore.SaveAsync(settings, cancellationToken);
@@ -131,8 +150,13 @@ public sealed class SettingsWindowViewModel(
             KeyStatusText = "Configured";
         }
 
-        StatusText = "Settings saved. Restart the app to apply Azure changes.";
+        StatusText = "Settings saved. Azure changes apply after restart.";
         return true;
+    }
+
+    private void ShowHotkeyConflict()
+    {
+        StatusText = $"The {_hotkey} shortcut is already in use. The previous hotkey remains active.";
     }
 
     public async Task RemoveKeyAsync(CancellationToken cancellationToken)
@@ -144,6 +168,12 @@ public sealed class SettingsWindowViewModel(
 
     private bool Validate()
     {
+        if (!HotkeyGesture.TryParse(Hotkey, out _))
+        {
+            StatusText = "Enter a hotkey such as Win+<, Ctrl+Alt+F9, or Win+Shift+K.";
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(AzureEndpoint) && string.IsNullOrWhiteSpace(AzureDeployment))
         {
             StatusText = string.Empty;

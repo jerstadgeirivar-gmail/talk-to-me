@@ -32,11 +32,23 @@ public partial class MainWindow : Window
     public void ShowSettingsWindow()
     {
         SettingsWindow settingsWindow = new(
-            new SettingsWindowViewModel(_settingsStore, _secretStore))
+            new SettingsWindowViewModel(_settingsStore, _secretStore),
+            ApplyHotkey)
         {
             Owner = this,
         };
         settingsWindow.ShowDialog();
+    }
+
+    private bool ApplyHotkey(string hotkey)
+    {
+        bool registered = _hotkeyService.Reconfigure(hotkey);
+        if (!registered)
+        {
+            _viewModel.ShowHotkeyRegistrationFailure(hotkey);
+        }
+
+        return registered;
     }
 
     private void OpenSettings(object sender, RoutedEventArgs e) => ShowSettingsWindow();
@@ -51,7 +63,7 @@ public partial class MainWindow : Window
         _windowSource.AddHook(ProcessWindowMessage);
         if (!_hotkeyService.Register(windowHandle))
         {
-            _viewModel.ShowHotkeyRegistrationFailure();
+            _viewModel.ShowHotkeyRegistrationFailure(_hotkeyService.GestureText);
         }
     }
 

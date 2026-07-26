@@ -132,9 +132,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
-    public void ShowHotkeyRegistrationFailure()
+    public void ShowHotkeyRegistrationFailure(string hotkey)
     {
-        StatusText = "The Ctrl+Alt+F9 shortcut is already in use";
+        StatusText = $"The {hotkey} shortcut is already in use";
     }
 
     public void CopyTranscriptToClipboard()

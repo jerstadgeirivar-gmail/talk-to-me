@@ -14,7 +14,7 @@
 | Tray and single instance | Implemented, limited verification | Tray actions and activation signal compile; notification-area interaction not automated |
 | Recovery | Partially verified | Retain/retry/delete/cancel implemented; crash metadata, startup discovery, retention limit incomplete |
 | Overlay | Not complete | Main status window is accessible but is not a non-activating multi-monitor overlay |
-| Settings breadth | Partial | Endpoint/deployment/key/glossary/retention/startup flags; microphone/hotkey editors and connection test incomplete |
+| Settings breadth | Partial | Endpoint/deployment/key/glossary/retention/startup flags and validated global hotkey editor; microphone editor and connection test incomplete |
 | Startup registration | Not complete | Setting is persisted but registry/startup task is not applied |
 | Audio size hardening | Not complete | Provider rejects over 25 MB; warning/compression/segmentation absent |
 | Packaging | Verified | Self-contained `win-x64`, package secret scan, two fresh functional runs |

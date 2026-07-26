@@ -62,6 +62,6 @@ See [docs/manual-test-plan.md](docs/manual-test-plan.md) and [docs/troubleshooti
 ## Limitations
 
 - A normal-integrity process cannot inject input into an elevated target because of Windows UIPI.
-- Global hotkey customization, microphone selection, startup registration, retry UI, and a separately owned Windows 11 Notepad smoke test remain incomplete.
+- Microphone selection, startup registration, retry UI, and a separately owned Windows 11 Notepad smoke test remain incomplete.
 - Live Azure validation requires endpoint and deployment configuration in addition to the protected key.
 - The binaries are unsigned and may trigger Microsoft Defender SmartScreen warnings.
