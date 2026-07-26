@@ -8,7 +8,7 @@ Requirements loaded: `_init/_init_01.md` sections 3, 4, 8, 9, 14; `_init/_init_0
 
 Capability implemented: .NET 10 WPF shell with Norwegian UI, stable UI Automation identifiers, accessible names, one command-owned action, and a FlaUI UIA3 executable driver with PID-scoped lifecycle and exact-window evidence capture.
 
-How it was exercised: Built `VoiceType.sln`, launched `VoiceType.App.exe` through `VoiceType.UiDriver`, found `MainWindow` by process and AutomationId, invoked `StartRecordingButton`, and read `ConnectionStatusText` through UIA.
+How it was exercised: Built `TalkToMe.sln`, launched `TalkToMe.App.exe` through `TalkToMe.UiDriver`, found `MainWindow` by process and AutomationId, invoked `StartRecordingButton`, and read `ConnectionStatusText` through UIA.
 
 Observed result: Two fresh accepted runs returned `Kontroll bekreftet`, captured an unclipped 520x360 window, and exited cleanly.
 
@@ -58,7 +58,7 @@ Capability implemented: Atomic per-user JSON settings, current-user DPAPI secret
 
 How it was exercised: Opened the real owned settings window through UIA, rejected HTTP, saved valid non-secret settings, wrote a generated synthetic key through the masked field, scanned ciphertext for plaintext, removed the key, and repeated from a fresh process.
 
-Observed result: Both UI runs passed; storage tests passed; the real one-line repository key was migrated to `%LOCALAPPDATA%\\VoiceType\\credential.bin`, verified by decrypt-and-compare without printing, and the plaintext source was deleted.
+Observed result: Both UI runs passed; storage tests passed; the real one-line repository key was migrated to `%LOCALAPPDATA%\\TalkToMe\\credential.bin`, verified by decrypt-and-compare without printing, and the plaintext source was deleted.
 
 Evidence: `artifacts/validation/slice-e/run-2/` and `artifacts/validation/slice-e/run-3/`.
 

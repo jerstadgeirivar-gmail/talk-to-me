@@ -12,4 +12,4 @@ The live smoke test is blocked externally: `_init/az-foundry-api-key.md` contain
 
 ## 2026-07-26: Safe external insertion target
 
-Windows 11 Notepad reused the user's already-running packaged Notepad process and did not expose a separately owned process/window. The unattended harness therefore uses `VoiceType.TestTarget`, a separate normal WPF Edit control, to avoid touching unrelated user content. This verifies standard UI insertion mechanics and exact-PID cleanup; Notepad remains a named smoke scenario once a separately owned instance can be guaranteed.
+Windows 11 Notepad reused the user's already-running packaged Notepad process and did not expose a separately owned process/window. The unattended harness therefore uses `TalkToMe.TestTarget`, a separate normal WPF Edit control, to avoid touching unrelated user content. This verifies standard UI insertion mechanics and exact-PID cleanup; Notepad remains a named smoke scenario once a separately owned instance can be guaranteed.

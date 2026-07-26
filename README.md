@@ -1,6 +1,6 @@
-# VoiceType
+# TalkToMe
 
-VoiceType is a Windows 11 WPF utility for recording Norwegian dictation, transcribing through an Azure OpenAI deployment, and inserting the completed text into the originally focused application.
+TalkToMe is a Windows 11 WPF utility for recording Norwegian dictation, transcribing through an Azure OpenAI deployment, and inserting the completed text into the originally focused application.
 
 ## Prerequisites
 
@@ -11,30 +11,30 @@ VoiceType is a Windows 11 WPF utility for recording Norwegian dictation, transcr
 ## Build
 
 ```powershell
-dotnet restore VoiceType.sln
-dotnet build VoiceType.sln --configuration Debug
-dotnet test tests\VoiceType.Infrastructure.Tests\VoiceType.Infrastructure.Tests.csproj --configuration Debug
+dotnet restore TalkToMe.sln
+dotnet build TalkToMe.sln --configuration Debug
+dotnet test tests\TalkToMe.Infrastructure.Tests\TalkToMe.Infrastructure.Tests.csproj --configuration Debug
 ```
 
 Launch the development build:
 
 ```powershell
-src\VoiceType.App\bin\Debug\net10.0-windows\VoiceType.App.exe
+src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe
 ```
 
 The default global toggle is `Ctrl+Alt+F9`. The normal flow captures the foreground target on the first press and stops recording on the second. The main window can also start and stop recording when a separate target is not required.
 
 ## Configuration
 
-Open **Innstillinger** to save the endpoint and deployment. API keys are stored as current-user DPAPI ciphertext under `%LOCALAPPDATA%\VoiceType`; they are never stored in `settings.json` or displayed after saving.
+Open **Innstillinger** to save the endpoint and deployment. API keys are stored as current-user DPAPI ciphertext under `%LOCALAPPDATA%\TalkToMe`; they are never stored in `settings.json` or displayed after saving.
 
 Development overrides:
 
 ```text
-VOICETYPE_AZURE_ENDPOINT
-VOICETYPE_AZURE_API_KEY
-VOICETYPE_AZURE_DEPLOYMENT
-VOICETYPE_AZURE_API_VERSION
+TALKTOME_AZURE_ENDPOINT
+TALKTOME_AZURE_API_KEY
+TALKTOME_AZURE_DEPLOYMENT
+TALKTOME_AZURE_API_VERSION
 ```
 
 ## Unattended Validation
@@ -42,19 +42,19 @@ VOICETYPE_AZURE_API_VERSION
 Record-only scenario:
 
 ```powershell
-dotnet run --project tools\VoiceType.UiDriver\VoiceType.UiDriver.csproj --no-build -- src\VoiceType.App\bin\Debug\net10.0-windows\VoiceType.App.exe _init\norwegian-audio-speech-test.mp3 artifacts\validation\record-only
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe _init\norwegian-audio-speech-test.mp3 artifacts\validation\record-only
 ```
 
 External insertion scenario:
 
 ```powershell
-dotnet run --project tools\VoiceType.UiDriver\VoiceType.UiDriver.csproj --no-build -- src\VoiceType.App\bin\Debug\net10.0-windows\VoiceType.App.exe _init\norwegian-audio-speech-test.mp3 artifacts\validation\insertion "Dette er en test av norsk diktering." tools\VoiceType.TestTarget\bin\Debug\net10.0-windows\VoiceType.TestTarget.exe
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe _init\norwegian-audio-speech-test.mp3 artifacts\validation\insertion "Dette er en test av norsk diktering." tools\TalkToMe.TestTarget\bin\Debug\net10.0-windows\TalkToMe.TestTarget.exe
 ```
 
 Settings and protected-storage scenario:
 
 ```powershell
-dotnet run --project tools\VoiceType.UiDriver\VoiceType.UiDriver.csproj --no-build -- src\VoiceType.App\bin\Debug\net10.0-windows\VoiceType.App.exe --settings artifacts\validation\settings
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe --settings artifacts\validation\settings
 ```
 
 See [docs/manual-test-plan.md](docs/manual-test-plan.md) and [docs/troubleshooting.md](docs/troubleshooting.md).

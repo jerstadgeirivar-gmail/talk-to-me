@@ -2,7 +2,7 @@
 
 ## Core Journey
 
-1. Start VoiceType and configure endpoint, deployment, and API key.
+1. Start TalkToMe and configure endpoint, deployment, and API key.
 2. Focus a non-sensitive text field.
 3. Press `Ctrl+Alt+F9`, speak Norwegian with an English technical term, then press the shortcut again.
 4. Confirm recording/processing states remain responsive.

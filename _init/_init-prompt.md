@@ -149,10 +149,10 @@ Support the following logical configuration values:
 
 Use development environment variables with names such as:
 
-* `VOICETYPE_AZURE_ENDPOINT`
-* `VOICETYPE_AZURE_API_KEY`
-* `VOICETYPE_AZURE_DEPLOYMENT`
-* `VOICETYPE_AZURE_API_VERSION`
+* `TALKTOME_AZURE_ENDPOINT`
+* `TALKTOME_AZURE_API_KEY`
+* `TALKTOME_AZURE_DEPLOYMENT`
+* `TALKTOME_AZURE_API_VERSION`
 
 Do not commit real values.
 
@@ -174,15 +174,15 @@ Support environment-variable overrides for development and automated contract te
 Use a small, deliberate architecture. A suitable starting point is:
 
 ```text
-VoiceType.sln
+TalkToMe.sln
 src/
-  VoiceType.App/
-  VoiceType.Core/
-  VoiceType.Infrastructure/
+  TalkToMe.App/
+  TalkToMe.Core/
+  TalkToMe.Infrastructure/
 tests/
-  VoiceType.Core.Tests/
-  VoiceType.Infrastructure.Tests/
-  VoiceType.App.Tests/
+  TalkToMe.Core.Tests/
+  TalkToMe.Infrastructure.Tests/
+  TalkToMe.App.Tests/
 docs/
   implementation-plan.md
   architecture.md
@@ -193,7 +193,7 @@ docs/
 
 Responsibilities:
 
-### `VoiceType.Core`
+### `TalkToMe.Core`
 
 Contain platform-independent application logic and contracts:
 
@@ -213,7 +213,7 @@ Contain platform-independent application logic and contracts:
 
 Do not reference WPF from this project.
 
-### `VoiceType.Infrastructure`
+### `TalkToMe.Infrastructure`
 
 Contain:
 
@@ -230,7 +230,7 @@ Contain:
 
 Keep native interop isolated, documented, and covered by tests where feasible.
 
-### `VoiceType.App`
+### `TalkToMe.App`
 
 Contain:
 

@@ -69,13 +69,13 @@ Do not assume that public OpenAI endpoint conventions and Azure OpenAI conventio
 The application must support configuration through these environment variables during development:
 
 ```text
-VOICETYPE_AZURE_ENDPOINT
-VOICETYPE_AZURE_API_KEY
-VOICETYPE_AZURE_DEPLOYMENT
-VOICETYPE_AZURE_API_VERSION
+TALKTOME_AZURE_ENDPOINT
+TALKTOME_AZURE_API_KEY
+TALKTOME_AZURE_DEPLOYMENT
+TALKTOME_AZURE_API_VERSION
 ```
 
-`VOICETYPE_AZURE_API_VERSION` should be optional if the selected official SDK does not require it.
+`TALKTOME_AZURE_API_VERSION` should be optional if the selected official SDK does not require it.
 
 Never commit, print, log, serialize into repository files, or expose the API key.
 
@@ -474,24 +474,24 @@ Use atomic file operations for recovery metadata where appropriate.
 Use this as a starting point, adjusting only when there is a concrete reason:
 
 ```text
-VoiceType.sln
+TalkToMe.sln
 
 src/
-  VoiceType.App/
+  TalkToMe.App/
     WPF UI
     tray integration
     composition root
     view models
     application lifecycle
 
-  VoiceType.Core/
+  TalkToMe.Core/
     domain models
     state machine
     interfaces
     application use cases
     validation abstractions
 
-  VoiceType.Infrastructure/
+  TalkToMe.Infrastructure/
     Azure transcription provider
     audio capture and encoding
     Windows hotkey integration
@@ -502,9 +502,9 @@ src/
     logging
 
 tests/
-  VoiceType.Core.Tests/
-  VoiceType.Infrastructure.Tests/
-  VoiceType.App.Tests/
+  TalkToMe.Core.Tests/
+  TalkToMe.Infrastructure.Tests/
+  TalkToMe.App.Tests/
 
 docs/
   architecture.md
@@ -599,7 +599,7 @@ Do not make ordinary automated tests depend on a live Azure account.
 
 ### 10.3 Optional live contract test
 
-Create an opt-in integration test that runs only when the required `VOICETYPE_AZURE_*` environment variables are present.
+Create an opt-in integration test that runs only when the required `TALKTOME_AZURE_*` environment variables are present.
 
 The test must:
 
@@ -907,10 +907,10 @@ If Azure credentials are not already available in the environment:
 Example placeholders:
 
 ```powershell
-$env:VOICETYPE_AZURE_ENDPOINT = "<azure-endpoint>"
-$env:VOICETYPE_AZURE_API_KEY = "<api-key>"
-$env:VOICETYPE_AZURE_DEPLOYMENT = "<deployment-name>"
-$env:VOICETYPE_AZURE_API_VERSION = "<api-version-if-required>"
+$env:TALKTOME_AZURE_ENDPOINT = "<azure-endpoint>"
+$env:TALKTOME_AZURE_API_KEY = "<api-key>"
+$env:TALKTOME_AZURE_DEPLOYMENT = "<deployment-name>"
+$env:TALKTOME_AZURE_API_VERSION = "<api-version-if-required>"
 ```
 
 Never replace placeholders with guessed values.

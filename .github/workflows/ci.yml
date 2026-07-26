@@ -16,14 +16,14 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Restore
-        run: dotnet restore VoiceType.sln
+        run: dotnet restore TalkToMe.sln
       - name: Build
-        run: dotnet build VoiceType.sln --configuration Release --no-restore
+        run: dotnet build TalkToMe.sln --configuration Release --no-restore
       - name: Test
-        run: dotnet test tests/VoiceType.Infrastructure.Tests/VoiceType.Infrastructure.Tests.csproj --configuration Release --no-build
+        run: dotnet test tests/TalkToMe.Infrastructure.Tests/TalkToMe.Infrastructure.Tests.csproj --configuration Release --no-build
       - name: Publish
-        run: dotnet publish src/VoiceType.App/VoiceType.App.csproj --configuration Release --runtime win-x64 --self-contained true --no-build --output artifacts/publish/win-x64
+        run: dotnet publish src/TalkToMe.App/TalkToMe.App.csproj --configuration Release --runtime win-x64 --self-contained true --no-build --output artifacts/publish/win-x64
       - uses: actions/upload-artifact@v4
         with:
-          name: VoiceType-win-x64
+          name: TalkToMe-win-x64
           path: artifacts/publish/win-x64

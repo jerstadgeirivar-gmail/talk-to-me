@@ -216,10 +216,10 @@ Do not hard-code either model identifier. Azure API calls must use the configure
 Support these development-time environment variables:
 
 ```text
-VOICETYPE_AZURE_ENDPOINT
-VOICETYPE_AZURE_API_KEY
-VOICETYPE_AZURE_DEPLOYMENT
-VOICETYPE_AZURE_API_VERSION
+TALKTOME_AZURE_ENDPOINT
+TALKTOME_AZURE_API_KEY
+TALKTOME_AZURE_DEPLOYMENT
+TALKTOME_AZURE_API_VERSION
 ```
 
 The API-version setting should be optional when the selected official SDK does not require it.
@@ -727,17 +727,17 @@ Never expose secrets through:
 Use this as a starting point:
 
 ```text
-VoiceType.sln
+TalkToMe.sln
 
 src/
-  VoiceType.App/
-  VoiceType.Core/
-  VoiceType.Infrastructure/
+  TalkToMe.App/
+  TalkToMe.Core/
+  TalkToMe.Infrastructure/
 
 tests/
-  VoiceType.Core.Tests/
-  VoiceType.Infrastructure.Tests/
-  VoiceType.App.Tests/
+  TalkToMe.Core.Tests/
+  TalkToMe.Infrastructure.Tests/
+  TalkToMe.App.Tests/
 
 docs/
   architecture.md
@@ -749,7 +749,7 @@ docs/
 
 Responsibilities:
 
-## VoiceType.App
+## TalkToMe.App
 
 * WPF UI
 * tray application
@@ -759,7 +759,7 @@ Responsibilities:
 * composition root
 * lifecycle coordination
 
-## VoiceType.Core
+## TalkToMe.Core
 
 * state machine
 * domain models
@@ -776,7 +776,7 @@ Core must not depend on:
 * Win32 implementations
 * concrete persistence
 
-## VoiceType.Infrastructure
+## TalkToMe.Infrastructure
 
 * microphone capture
 * audio encoding
@@ -1196,10 +1196,10 @@ Never request that the user paste an API key into chat.
 If credentials are missing, ask the user to set them securely using placeholders such as:
 
 ```powershell
-$env:VOICETYPE_AZURE_ENDPOINT = "<azure-endpoint>"
-$env:VOICETYPE_AZURE_API_KEY = "<api-key>"
-$env:VOICETYPE_AZURE_DEPLOYMENT = "<deployment-name>"
-$env:VOICETYPE_AZURE_API_VERSION = "<api-version-if-required>"
+$env:TALKTOME_AZURE_ENDPOINT = "<azure-endpoint>"
+$env:TALKTOME_AZURE_API_KEY = "<api-key>"
+$env:TALKTOME_AZURE_DEPLOYMENT = "<deployment-name>"
+$env:TALKTOME_AZURE_API_VERSION = "<api-version-if-required>"
 ```
 
 Explain that process-scoped environment variables disappear when the shell closes.

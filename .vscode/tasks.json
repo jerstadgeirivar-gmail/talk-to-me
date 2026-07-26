@@ -2,12 +2,12 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build VoiceType App",
+      "label": "build TalkToMe App",
       "type": "process",
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/src/VoiceType.App/VoiceType.App.csproj",
+        "${workspaceFolder}/src/TalkToMe.App/TalkToMe.App.csproj",
         "--configuration",
         "Debug"
       ],

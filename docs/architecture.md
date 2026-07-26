@@ -2,11 +2,11 @@
 
 ## Projects
 
-- `VoiceType.Core`: platform-independent contracts, state transitions, recording/transcription/insertion models, and settings models.
-- `VoiceType.Infrastructure`: NAudio sources and WAV writer, Azure REST provider, Win32 target/hotkey/input adapters, clipboard insertion, DPAPI, and JSON persistence.
-- `VoiceType.App`: WPF composition, windows, view models, hotkey message routing, single-instance lifecycle, and tray integration.
-- `VoiceType.UiDriver`: FlaUI UIA3 functional driver and redacted evidence capture.
-- `VoiceType.TestTarget`: isolated standard WPF Edit target for unattended insertion validation.
+- `TalkToMe.Core`: platform-independent contracts, state transitions, recording/transcription/insertion models, and settings models.
+- `TalkToMe.Infrastructure`: NAudio sources and WAV writer, Azure REST provider, Win32 target/hotkey/input adapters, clipboard insertion, DPAPI, and JSON persistence.
+- `TalkToMe.App`: WPF composition, windows, view models, hotkey message routing, single-instance lifecycle, and tray integration.
+- `TalkToMe.UiDriver`: FlaUI UIA3 functional driver and redacted evidence capture.
+- `TalkToMe.TestTarget`: isolated standard WPF Edit target for unattended insertion validation.
 
 ## Runtime Flow
 
@@ -25,4 +25,4 @@ The file-backed diagnostic source emits the same 16 kHz, 16-bit, mono PCM frames
 
 ## State and Failure Policy
 
-`ApplicationStateController` rejects transitions not declared in its transition table. Audio remains under `%LOCALAPPDATA%\VoiceType\Pending` after transcription/insertion failure and is deleted after successful insertion. Azure requests are not automatically retried after ambiguous outcomes.
+`ApplicationStateController` rejects transitions not declared in its transition table. Audio remains under `%LOCALAPPDATA%\TalkToMe\Pending` after transcription/insertion failure and is deleted after successful insertion. Azure requests are not automatically retried after ambiguous outcomes.
