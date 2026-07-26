@@ -5,7 +5,7 @@ public sealed class ApplicationStateController : IApplicationStateController
     private static readonly Dictionary<DictationState, HashSet<DictationState>> AllowedTransitions =
         new()
         {
-            [DictationState.Idle] = Set(DictationState.StartingRecording),
+            [DictationState.Idle] = Set(DictationState.StartingRecording, DictationState.RecoverableFailure),
             [DictationState.StartingRecording] = Set(
                 DictationState.Recording,
                 DictationState.Cancelling,

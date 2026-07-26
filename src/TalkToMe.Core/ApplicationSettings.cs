@@ -6,7 +6,7 @@ public sealed record ApplicationSettings
 
     public string AzureDeployment { get; init; } = string.Empty;
 
-    public string AzureApiVersion { get; init; } = "preview";
+    public string AzureApiVersion { get; init; } = "2025-04-01-preview";
 
     public string TechnicalVocabulary { get; init; } = string.Empty;
 

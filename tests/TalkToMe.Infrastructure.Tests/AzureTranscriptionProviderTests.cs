@@ -17,7 +17,7 @@ public sealed class AzureTranscriptionProviderTests
             using DelegateHandler handler = new(async (request, cancellationToken) =>
             {
                 Assert.Equal(
-                    "https://example.openai.azure.com/openai/v1/audio/transcriptions?api-version=preview",
+                    "https://example.openai.azure.com/openai/v1/audio/transcriptions?api-version=v1",
                     request.RequestUri?.AbsoluteUri);
                 Assert.Equal("test-key", request.Headers.GetValues("api-key").Single());
                 MultipartFormDataContent multipart = Assert.IsType<MultipartFormDataContent>(request.Content);
@@ -58,7 +58,7 @@ public sealed class AzureTranscriptionProviderTests
     }
 
     [Fact]
-    public async Task TranscribeAsyncSendsDocumentedDeploymentScopedRequestForDatedApi()
+    public async Task TranscribeAsyncUsesDeploymentRouteForFoundryServicesEndpoint()
     {
         string audioPath = CreateAudioFile();
         try
@@ -66,12 +66,12 @@ public sealed class AzureTranscriptionProviderTests
             using DelegateHandler handler = new(async (request, cancellationToken) =>
             {
                 Assert.Equal(
-                    "https://example.services.ai.azure.com/openai/deployments/speech-deployment/audio/transcriptions?api-version=2024-10-21",
+                    "https://example.services.ai.azure.com/openai/deployments/speech-deployment/audio/transcriptions?api-version=2025-04-01-preview",
                     request.RequestUri?.AbsoluteUri);
                 MultipartFormDataContent multipart = Assert.IsType<MultipartFormDataContent>(request.Content);
                 Dictionary<string, HttpContent> parts = multipart.ToDictionary(
                     part => part.Headers.ContentDisposition!.Name!.Trim('"'));
-                Assert.False(parts.ContainsKey("model"));
+                Assert.Equal("speech-deployment", await parts["model"].ReadAsStringAsync(cancellationToken));
                 Assert.Equal("json", await parts["response_format"].ReadAsStringAsync(cancellationToken));
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
@@ -83,7 +83,7 @@ public sealed class AzureTranscriptionProviderTests
                 new Uri("https://example.services.ai.azure.com/"),
                 "test-key",
                 "speech-deployment",
-                "2024-10-21",
+                "2025-04-01-preview",
                 TimeSpan.FromSeconds(10));
             await using AzureTranscriptionProvider provider = new(options, httpClient);
 
@@ -135,7 +135,7 @@ public sealed class AzureTranscriptionProviderTests
         new Uri("https://example.openai.azure.com/"),
         "test-key",
         "speech-deployment",
-        "preview",
+        "v1",
         TimeSpan.FromSeconds(10));
 
     private static string CreateAudioFile()

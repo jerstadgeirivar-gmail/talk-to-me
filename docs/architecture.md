@@ -25,4 +25,4 @@ The file-backed diagnostic source emits the same 16 kHz, 16-bit, mono PCM frames
 
 ## State and Failure Policy
 
-`ApplicationStateController` rejects transitions not declared in its transition table. Audio remains under `%LOCALAPPDATA%\TalkToMe\Pending` after transcription/insertion failure and is deleted after successful insertion. Azure requests are not automatically retried after ambiguous outcomes.
+`ApplicationStateController` rejects transitions not declared in its transition table. PCM audio is flushed durably while recording under `%LOCALAPPDATA%\TalkToMe\Pending`. On startup, TalkToMe repairs an interrupted WAV header and offers the newest recoverable recording for retry or deletion. Target window metadata is stored beside the audio and reused only while the same HWND/PID remains valid. Audio is deleted after successful insertion. Azure requests are not automatically retried after ambiguous outcomes.

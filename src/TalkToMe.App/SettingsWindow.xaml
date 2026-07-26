@@ -6,111 +6,159 @@
         Height="760"
         MinWidth="540"
         MinHeight="620"
+        Icon="/Assets/TalkToMe.ico"
         WindowStartupLocation="CenterOwner"
         AutomationProperties.AutomationId="SettingsWindow"
         AutomationProperties.Name="TalkToMe settings">
-    <Grid Background="#F4F1EA">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="32">
-                <TextBlock FontFamily="Segoe UI Variable Display"
+            <StackPanel Margin="28,24,28,18">
+                <TextBlock FontFamily="Segoe UI Variable Display, Segoe UI"
                            FontSize="24"
                            FontWeight="SemiBold"
+                           Foreground="{StaticResource NavyBrush}"
                            Text="Settings" />
+                <TextBlock Margin="0,3,0,18"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           Text="Configure transcription and application behavior." />
 
-                <TextBlock Margin="0,22,0,5" Text="Azure endpoint" />
-                <TextBox Height="34"
-                         Padding="8,5"
-                         Text="{Binding AzureEndpoint, UpdateSourceTrigger=PropertyChanged}"
-                         AutomationProperties.AutomationId="AzureEndpointTextBox"
-                         AutomationProperties.Name="Azure endpoint" />
-                <TextBlock Margin="0,14,0,5" Text="Deployment name" />
-                <TextBox Height="34"
-                         Padding="8,5"
-                         Text="{Binding AzureDeployment, UpdateSourceTrigger=PropertyChanged}"
-                         AutomationProperties.AutomationId="AzureDeploymentTextBox"
-                         AutomationProperties.Name="Deployment name" />
-                <TextBlock Margin="0,14,0,5" Text="API version" />
-                <TextBox Height="34"
-                         Padding="8,5"
-                         Text="{Binding AzureApiVersion, UpdateSourceTrigger=PropertyChanged}"
-                         AutomationProperties.AutomationId="AzureApiVersionTextBox"
-                         AutomationProperties.Name="API version" />
+                <Border Padding="18,16"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock Margin="0,0,0,14"
+                                   Style="{StaticResource SectionTitleText}"
+                                   Text="Azure transcription" />
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Endpoint" />
+                        <TextBox Text="{Binding AzureEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.AutomationId="AzureEndpointTextBox"
+                                 AutomationProperties.Name="Azure endpoint" />
+                        <TextBlock Margin="0,12,0,6"
+                                   Style="{StaticResource FieldLabel}"
+                                   Text="Deployment name" />
+                        <TextBox Text="{Binding AzureDeployment, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.AutomationId="AzureDeploymentTextBox"
+                                 AutomationProperties.Name="Deployment name" />
+                        <TextBlock Margin="0,12,0,6"
+                                   Style="{StaticResource FieldLabel}"
+                                   Text="API version" />
+                        <TextBox Text="{Binding AzureApiVersion, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.AutomationId="AzureApiVersionTextBox"
+                                 AutomationProperties.Name="API version" />
+                        <DockPanel Margin="0,12,0,6">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="API key" />
+                            <Border HorizontalAlignment="Right"
+                                    Padding="8,3"
+                                    Background="{StaticResource AccentSoftBrush}"
+                                    CornerRadius="10">
+                                <TextBlock FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="#126246"
+                                           Text="{Binding KeyStatusText}"
+                                           AutomationProperties.AutomationId="ApiKeyStatusText"
+                                           AutomationProperties.Name="{Binding KeyStatusText}" />
+                            </Border>
+                        </DockPanel>
+                        <PasswordBox x:Name="ApiKeyPasswordBox"
+                                     AutomationProperties.AutomationId="ApiKeyPasswordBox"
+                                     AutomationProperties.Name="Replace API key" />
+                    </StackPanel>
+                </Border>
 
-                <DockPanel Margin="0,16,0,5">
-                    <TextBlock Text="API key" />
-                    <TextBlock HorizontalAlignment="Right"
-                               FontWeight="SemiBold"
-                               Text="{Binding KeyStatusText}"
-                               AutomationProperties.AutomationId="ApiKeyStatusText"
-                               AutomationProperties.Name="{Binding KeyStatusText}" />
-                </DockPanel>
-                <PasswordBox x:Name="ApiKeyPasswordBox"
-                             Height="34"
-                             Padding="8,5"
-                             AutomationProperties.AutomationId="ApiKeyPasswordBox"
-                             AutomationProperties.Name="Replace API key" />
+                <Border Margin="0,12,0,0"
+                        Padding="18,16"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock Margin="0,0,0,14"
+                                   Style="{StaticResource SectionTitleText}"
+                                   Text="Dictation preferences" />
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Technical vocabulary and context" />
+                        <TextBox Height="76"
+                                 VerticalContentAlignment="Top"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Text="{Binding TechnicalVocabulary, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.AutomationId="VocabularyTextBox"
+                                 AutomationProperties.Name="Technical vocabulary" />
+                        <TextBlock Margin="0,14,0,6"
+                                   Style="{StaticResource FieldLabel}"
+                                   Text="Global hotkey" />
+                        <TextBox Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.AutomationId="HotkeyTextBox"
+                                 AutomationProperties.Name="Global hotkey" />
+                        <TextBlock Margin="0,5,0,0"
+                                   FontSize="11"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   Text="Examples: Win+&lt;, Ctrl+Alt+F9, Win+Shift+K. Changes apply when saved."
+                                   TextWrapping="Wrap" />
 
-                <TextBlock Margin="0,16,0,5" Text="Technical vocabulary and context" />
-                <TextBox Height="92"
-                         Padding="8"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
-                         Text="{Binding TechnicalVocabulary, UpdateSourceTrigger=PropertyChanged}"
-                         AutomationProperties.AutomationId="VocabularyTextBox"
-                         AutomationProperties.Name="Technical vocabulary" />
+                        <CheckBox Margin="0,16,0,0"
+                                  Content="Keep audio after failed transcription"
+                                  IsChecked="{Binding RetainFailedAudio}"
+                                  AutomationProperties.AutomationId="RetainFailedAudioCheckBox" />
+                        <CheckBox Margin="0,10,0,0"
+                                  Content="Start with Windows"
+                                  IsChecked="{Binding StartWithWindows}"
+                                  AutomationProperties.AutomationId="StartWithWindowsCheckBox" />
+                        <CheckBox Margin="0,10,0,0"
+                                  Content="Copy to clipboard only"
+                                  IsChecked="{Binding ClipboardOnlyMode}"
+                                  AutomationProperties.AutomationId="ClipboardOnlyCheckBox" />
+                    </StackPanel>
+                </Border>
 
-                <CheckBox Margin="0,18,0,0"
-                          Content="Keep audio after failed transcription"
-                          IsChecked="{Binding RetainFailedAudio}"
-                          AutomationProperties.AutomationId="RetainFailedAudioCheckBox" />
-                <CheckBox Margin="0,10,0,0"
-                          Content="Start with Windows"
-                          IsChecked="{Binding StartWithWindows}"
-                          AutomationProperties.AutomationId="StartWithWindowsCheckBox" />
-                <CheckBox Margin="0,10,0,0"
-                          Content="Copy to clipboard only"
-                          IsChecked="{Binding ClipboardOnlyMode}"
-                          AutomationProperties.AutomationId="ClipboardOnlyCheckBox" />
+                <Border Margin="0,12,0,0"
+                        Padding="12,9"
+                        Background="{StaticResource DangerSoftBrush}"
+                        BorderBrush="#ECD3D0"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <TextBlock Foreground="{StaticResource DangerBrush}"
+                               Text="{Binding StatusText}"
+                               TextWrapping="Wrap"
+                               AutomationProperties.AutomationId="SettingsStatusText"
+                               AutomationProperties.Name="{Binding StatusText}" />
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
 
-                <TextBlock Margin="0,18,0,5" Text="Global hotkey" />
-                <TextBox Height="34"
-                         Padding="8,5"
-                         Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"
-                         AutomationProperties.AutomationId="HotkeyTextBox"
-                         AutomationProperties.Name="Global hotkey" />
-                <TextBlock Margin="0,5,0,0"
-                           Foreground="#5F5B53"
-                           Text="Examples: Win+&lt;, Ctrl+Alt+F9, Win+Shift+K. Changes apply when saved."
-                           TextWrapping="Wrap" />
-
-                <TextBlock Margin="0,18,0,0"
-                           Foreground="#9A2E22"
-                           Text="{Binding StatusText}"
-                           TextWrapping="Wrap"
-                           AutomationProperties.AutomationId="SettingsStatusText"
-                           AutomationProperties.Name="{Binding StatusText}" />
-
-                <StackPanel Margin="0,20,0,0" Orientation="Horizontal">
-                    <Button Width="120"
-                            Height="38"
-                            Content="Save"
-                            Click="SaveSettings"
-                            AutomationProperties.AutomationId="SaveSettingsButton" />
-                    <Button Width="150"
-                            Height="38"
-                            Margin="10,0,0,0"
-                            Content="Remove API key"
-                            Click="RemoveApiKey"
-                            AutomationProperties.AutomationId="RemoveApiKeyButton" />
-                    <Button Width="100"
-                            Height="38"
-                            Margin="10,0,0,0"
+        <Border Grid.Row="1"
+                Padding="28,14"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <Button HorizontalAlignment="Left"
+                        MinWidth="132"
+                        Style="{StaticResource DangerButton}"
+                        Content="Remove API key"
+                        Click="RemoveApiKey"
+                        AutomationProperties.AutomationId="RemoveApiKeyButton" />
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button MinWidth="90"
+                            Style="{StaticResource SecondaryButton}"
                             Content="Close"
                             Click="CloseSettings"
                             AutomationProperties.AutomationId="CloseSettingsButton" />
+                    <Button MinWidth="110"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="Save settings"
+                            Click="SaveSettings"
+                            AutomationProperties.AutomationId="SaveSettingsButton" />
                 </StackPanel>
-            </StackPanel>
-        </ScrollViewer>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

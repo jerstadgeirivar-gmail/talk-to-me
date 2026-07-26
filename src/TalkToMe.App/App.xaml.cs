@@ -53,6 +53,10 @@ public partial class App : System.Windows.Application, IDisposable
                 : new AzureTranscriptionProvider(azureOptions);
         WindowsWindowTargetService windowTargetService = new(Environment.ProcessId);
         WindowsGlobalHotkeyService hotkeyService = new(settings.Hotkey);
+        RecoveredRecording? recoveredRecording =
+            options.DiagnosticDataDirectory is null && options.OutputPath is null
+                ? PendingRecordingRecovery.FindLatest(TalkToMeDataPaths.PendingAudioDirectory)
+                : null;
         string outputPath = options.OutputPath ?? CreatePendingAudioPath();
         MainWindowViewModel viewModel = new(
             audioSource,
@@ -66,7 +70,8 @@ public partial class App : System.Windows.Application, IDisposable
                 new WindowsKeyboardInputAdapter()),
             hotkeyService,
             outputPath,
-            allowRecordOnly: options.DiagnosticAudioPath is not null && options.DiagnosticTranscript is null);
+            allowRecordOnly: options.DiagnosticAudioPath is not null && options.DiagnosticTranscript is null,
+            recoveredRecording);
         MainWindow window = new(viewModel, hotkeyService, settingsStore, secretStore);
         MainWindow = window;
         window.Show();
@@ -119,7 +124,8 @@ public partial class App : System.Windows.Application, IDisposable
         _trayIcon = new System.Windows.Forms.NotifyIcon
         {
             ContextMenuStrip = menu,
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
+                ?? System.Drawing.SystemIcons.Application,
             Text = "TalkToMe",
             Visible = true,
         };

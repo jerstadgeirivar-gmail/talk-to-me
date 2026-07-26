@@ -102,7 +102,15 @@ public sealed class WaveAudioRecordingService : IAudioRecordingService
             source.Format.SampleRate,
             source.Format.BitsPerSample,
             source.Format.Channels);
-        using WaveFileWriter writer = new(outputPath, waveFormat);
+        await using FileStream output = new(
+            outputPath,
+            FileMode.Create,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.Asynchronous | FileOptions.WriteThrough);
+        using WaveFileWriter writer = new(output, waveFormat);
+        DateTime nextDurableFlush = DateTime.UtcNow;
 
         try
         {
@@ -110,6 +118,11 @@ public sealed class WaveAudioRecordingService : IAudioRecordingService
             {
                 writer.Write(frame.Data, 0, frame.Data.Length);
                 writer.Flush();
+                if (DateTime.UtcNow >= nextDurableFlush)
+                {
+                    output.Flush(flushToDisk: true);
+                    nextDurableFlush = DateTime.UtcNow.AddSeconds(1);
+                }
                 _bytesWritten += frame.Data.Length;
                 progress?.Report(new RecordingProgress(
                     TimeSpan.FromSeconds((double)_bytesWritten / source.Format.BytesPerSecond),

@@ -11,7 +11,7 @@ public sealed class SettingsWindowViewModel(
 {
     private string _azureEndpoint = string.Empty;
     private string _azureDeployment = string.Empty;
-    private string _azureApiVersion = "preview";
+    private string _azureApiVersion = "2025-04-01-preview";
     private string _technicalVocabulary = string.Empty;
     private bool _retainFailedAudio = true;
     private bool _startWithWindows;

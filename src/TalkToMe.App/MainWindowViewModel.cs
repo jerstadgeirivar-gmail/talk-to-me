@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using TalkToMe.Core;
+using TalkToMe.Infrastructure;
 
 namespace TalkToMe.App;
 
@@ -33,6 +34,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private string _transcriptText = string.Empty;
     private WindowTarget? _windowTarget;
     private RecordingResult? _lastRecording;
+    private string _targetText = "No target captured — focus a text field and use the hotkey";
 
     public MainWindowViewModel(
         IAudioSource audioSource,
@@ -43,7 +45,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         ITextInsertionService textInsertionService,
         IGlobalHotkeyService globalHotkeyService,
         string outputPath,
-        bool allowRecordOnly)
+        bool allowRecordOnly,
+        RecoveredRecording? recoveredRecording = null)
     {
         _audioSource = audioSource;
         _recordingService = recordingService;
@@ -59,7 +62,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         _cancelCommand = new AsyncDelegateCommand(CancelRecordingAsync, () => IsRecording);
         _retryCommand = new AsyncDelegateCommand(RetryTranscriptionAsync, CanRetryTranscription);
         _deletePendingCommand = new AsyncDelegateCommand(DeletePendingAudioAsync, CanDeletePendingAudio);
-        if (_transcriptionProvider is null && !_allowRecordOnly)
+        if (recoveredRecording is not null)
+        {
+            _lastRecording = recoveredRecording.Recording;
+            _windowTarget = recoveredRecording.Target is not null &&
+                            _windowTargetService.IsValid(recoveredRecording.Target)
+                ? recoveredRecording.Target
+                : null;
+            UpdateTargetText();
+            _stateController.TransitionTo(DictationState.RecoverableFailure);
+            _statusText = $"Recovered {FormatDuration(_lastRecording.Duration)} of audio after an interrupted session";
+        }
+        else if (_transcriptionProvider is null && !_allowRecordOnly)
         {
             _statusText = "Azure setup is missing";
         }
@@ -80,6 +94,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     }
 
     public string SourceText => _audioSource.Name;
+
+    public string TargetText
+    {
+        get => _targetText;
+        private set => SetProperty(ref _targetText, value);
+    }
 
     public double InputLevel
     {
@@ -121,7 +141,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
 
     public void ToggleRecording(bool insertAfterTranscription = false)
     {
-        if (_stopRecordingCommand.CanExecute(null))
+        if (_stateController.Current == DictationState.ReadyToInsert &&
+            !string.IsNullOrWhiteSpace(TranscriptText))
+        {
+            _windowTarget = TryCaptureForegroundTarget();
+            UpdateTargetText();
+            if (CanInsertTranscript())
+            {
+                _insertCommand.Execute(null);
+            }
+        }
+        else if (_stopRecordingCommand.CanExecute(null))
         {
             _stopRecordingCommand.Execute(null);
         }
@@ -192,6 +222,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             _windowTarget = _transcriptionProvider is null
                 ? null
                 : TryCaptureForegroundTarget();
+            UpdateTargetText();
+            PendingRecordingRecovery.SaveTarget(_outputPath, _windowTarget);
 
             Progress<RecordingProgress> progress = new(UpdateProgress);
             await _recordingService.StartAsync(
@@ -274,7 +306,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         {
             _stateController.TransitionTo(DictationState.Completed);
             StatusText = "Text inserted";
-            File.Delete(_outputPath);
+            PendingRecordingRecovery.Delete(_lastRecording?.FilePath ?? _outputPath);
             _lastRecording = null;
             _insertAfterTranscription = false;
             _startRecordingCommand.RaiseCanExecuteChanged();
@@ -295,7 +327,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         IsRecording = false;
         StatusText = "Cancelling recording";
         RecordingResult result = await _recordingService.StopAsync(_lifetimeCancellation.Token);
-        File.Delete(result.FilePath);
+        PendingRecordingRecovery.Delete(result.FilePath);
         _lastRecording = null;
         _insertAfterTranscription = false;
         _stateController.TransitionTo(DictationState.Cancelled);
@@ -338,7 +370,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     {
         if (_lastRecording is not null)
         {
-            File.Delete(_lastRecording.FilePath);
+            PendingRecordingRecovery.Delete(_lastRecording.FilePath);
             _lastRecording = null;
         }
 
@@ -385,6 +417,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         {
             return null;
         }
+    }
+
+    private void UpdateTargetText()
+    {
+        TargetText = _windowTarget is null
+            ? "No target captured — focus a text field and use the hotkey"
+            : $"{_windowTarget.Title}  •  PID {_windowTarget.ProcessId}  •  HWND 0x{_windowTarget.Handle:X}";
     }
 
     private void TransitionToFailure(string message = "Recording failed")

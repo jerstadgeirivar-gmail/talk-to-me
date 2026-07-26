@@ -35,11 +35,7 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
         using StreamContent fileContent = new(audioStream);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
         content.Add(fileContent, "file", Path.GetFileName(audio.FilePath));
-        if (UsesV1Route())
-        {
-            content.Add(new StringContent(_options.Deployment), "model");
-        }
-
+        content.Add(new StringContent(_options.Deployment), "model");
         content.Add(new StringContent("json"), "response_format");
         if (!string.IsNullOrWhiteSpace(context.Language))
         {
@@ -145,7 +141,6 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
     }
 
     private bool UsesV1Route() =>
-        _options.ApiVersion.Equals("preview", StringComparison.OrdinalIgnoreCase) ||
         _options.ApiVersion.Equals("v1", StringComparison.OrdinalIgnoreCase);
 
     private static TranscriptionException CreateResponseException(HttpResponseMessage response)

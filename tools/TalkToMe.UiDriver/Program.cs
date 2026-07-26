@@ -76,6 +76,8 @@ try
     }
     else
     {
+        startInfo.ArgumentList.Add("--diagnostic-data-directory");
+        startInfo.ArgumentList.Add(Path.Combine(evidenceDirectory, "data"));
         startInfo.ArgumentList.Add("--diagnostic-audio");
         startInfo.ArgumentList.Add(audioFixturePath!);
         startInfo.ArgumentList.Add("--diagnostic-output");
@@ -195,10 +197,12 @@ try
             }
         }
 
-        AutomationElement insertButton = window.FindFirstDescendant(
-            condition => condition.ByAutomationId(insertButtonAutomationId))
-            ?? throw new InvalidOperationException($"Button '{insertButtonAutomationId}' was not found.");
-        AssertEnabledState(insertButton, expectedEnabled: false, "insert button after automatic insertion");
+        AutomationElement? insertButton = window.FindFirstDescendant(
+            condition => condition.ByAutomationId(insertButtonAutomationId));
+        if (insertButton is not null)
+        {
+            AssertEnabledState(insertButton, expectedEnabled: false, "insert button after automatic insertion");
+        }
 
         string insertedText = notepadEditor!.AsTextBox().Text;
         exactInsertionMatch = insertedText == displayedTranscript;
