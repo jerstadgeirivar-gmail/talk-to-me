@@ -1,0 +1,29 @@
+name: Windows CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore VoiceType.sln
+      - name: Build
+        run: dotnet build VoiceType.sln --configuration Release --no-restore
+      - name: Test
+        run: dotnet test tests/VoiceType.Infrastructure.Tests/VoiceType.Infrastructure.Tests.csproj --configuration Release --no-build
+      - name: Publish
+        run: dotnet publish src/VoiceType.App/VoiceType.App.csproj --configuration Release --runtime win-x64 --self-contained true --no-build --output artifacts/publish/win-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoiceType-win-x64
+          path: artifacts/publish/win-x64
