@@ -10,7 +10,8 @@ internal sealed record AppLaunchOptions(
     string? ImportKeyFile,
     string? DiagnosticDataDirectory,
     double DiagnosticSpeed,
-    bool ShowWindow)
+    bool ShowWindow,
+    bool StartMinimized)
 {
     public static AppLaunchOptions Parse(string[] arguments)
     {
@@ -21,6 +22,7 @@ internal sealed record AppLaunchOptions(
         string? diagnosticDataDirectory = null;
         double diagnosticSpeed = 1;
         bool showWindow = false;
+        bool startMinimized = false;
 
         for (int index = 0; index < arguments.Length; index++)
         {
@@ -28,6 +30,12 @@ internal sealed record AppLaunchOptions(
             if (option == "--show-window")
             {
                 showWindow = true;
+                continue;
+            }
+
+            if (option == "--minimized")
+            {
+                startMinimized = true;
                 continue;
             }
 
@@ -79,7 +87,8 @@ internal sealed record AppLaunchOptions(
             importKeyFile,
             diagnosticDataDirectory,
             diagnosticSpeed,
-            showWindow);
+            showWindow,
+            startMinimized);
     }
 
     private static string RequireValue(string[] arguments, ref int index)

@@ -22,6 +22,16 @@ Launch the development build:
 src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe
 ```
 
+Build the per-user Windows installer after publishing:
+
+```powershell
+dotnet publish src\TalkToMe.App\TalkToMe.App.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts\publish\win-x64
+iscc packaging\TalkToMe.iss
+```
+
+The installer registers TalkToMe to start with Windows using the `--minimized`
+option, which keeps the main window hidden in the system tray.
+
 The default global toggle is `Ctrl+Alt+F9`. The normal flow captures the foreground target on the first press and stops recording on the second. The main window can also start and stop recording when a separate target is not required.
 
 ## Configuration
@@ -62,6 +72,6 @@ See [docs/manual-test-plan.md](docs/manual-test-plan.md) and [docs/troubleshooti
 ## Limitations
 
 - A normal-integrity process cannot inject input into an elevated target because of Windows UIPI.
-- Microphone selection, startup registration, retry UI, and a separately owned Windows 11 Notepad smoke test remain incomplete.
+- Microphone selection and a separately owned Windows 11 Notepad smoke test remain incomplete.
 - Live Azure validation requires endpoint and deployment configuration in addition to the protected key.
 - The binaries are unsigned and may trigger Microsoft Defender SmartScreen warnings.

@@ -77,7 +77,7 @@ public partial class App : System.Windows.Application, IDisposable
         window.Show();
         _singleInstance.ActivationRequested += () => Dispatcher.BeginInvoke(() => ShowMainWindow(window));
         InitializeTray(viewModel, window);
-        if (options.DiagnosticAudioPath is null && azureOptions is not null && !options.ShowWindow)
+        if (options.StartMinimized)
         {
             window.Hide();
         }
