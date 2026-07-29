@@ -26,6 +26,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private readonly AsyncDelegateCommand _cancelCommand;
     private readonly AsyncDelegateCommand _retryCommand;
     private readonly AsyncDelegateCommand _deletePendingCommand;
+    private readonly AsyncDelegateCommand _checkForUpdatesCommand;
     private string _statusText = "Ready";
     private string _durationText = "00:00:00.0";
     private double _inputLevel;
@@ -36,6 +37,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private RecordingResult? _lastRecording;
     private string _targetText = "No target captured — focus a text field and use the hotkey";
     private string _voiceCommandText = "Off";
+    private string _versionText = "Development build";
+    private string _updateStatusText = "Automatic updates are disabled";
+    private Func<Task>? _checkForUpdates;
 
     public MainWindowViewModel(
         IAudioSource audioSource,
@@ -63,6 +67,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         _cancelCommand = new AsyncDelegateCommand(CancelRecordingAsync, () => IsRecording);
         _retryCommand = new AsyncDelegateCommand(RetryTranscriptionAsync, CanRetryTranscription);
         _deletePendingCommand = new AsyncDelegateCommand(DeletePendingAudioAsync, CanDeletePendingAudio);
+        _checkForUpdatesCommand = new AsyncDelegateCommand(
+            () => _checkForUpdates?.Invoke() ?? Task.CompletedTask,
+            () => _checkForUpdates is not null);
         if (recoveredRecording is not null)
         {
             _lastRecording = recoveredRecording.Recording;
@@ -139,6 +146,36 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     public ICommand RetryCommand => _retryCommand;
 
     public ICommand DeletePendingCommand => _deletePendingCommand;
+
+    public ICommand CheckForUpdatesCommand => _checkForUpdatesCommand;
+
+    public string VersionText
+    {
+        get => _versionText;
+        private set => SetProperty(ref _versionText, value);
+    }
+
+    public string UpdateStatusText
+    {
+        get => _updateStatusText;
+        private set => SetProperty(ref _updateStatusText, value);
+    }
+
+    public bool CanInstallUpdate =>
+        !IsRecording &&
+        _stateController.Current is DictationState.Idle or DictationState.Completed;
+
+    public void ConfigureUpdates(string versionText, Func<Task>? checkForUpdates)
+    {
+        VersionText = versionText;
+        _checkForUpdates = checkForUpdates;
+        UpdateStatusText = checkForUpdates is null
+            ? "Automatic updates are disabled"
+            : "Updates checked at startup and hourly";
+        _checkForUpdatesCommand.RaiseCanExecuteChanged();
+    }
+
+    public void SetUpdateStatus(string status) => UpdateStatusText = status;
 
     public void ToggleRecording(bool insertAfterTranscription = false)
     {

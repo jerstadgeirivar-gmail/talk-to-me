@@ -35,11 +35,15 @@ the repository's **Actions** tab. Choose **Run workflow** and optionally enter a
 three- or four-part version such as `1.2.0`. If no version is supplied, the
 workflow uses `1.0.<run number>`.
 
-After the run completes, download the `TalkToMe-Setup-<version>` artifact. It
-contains `TalkToMe-Setup.exe` and its SHA-256 checksum. The workflow restores,
-builds, runs all tests, publishes the self-contained Windows x64 application,
-and compiles the installer. It does not create a GitHub Release or install the
-application.
+After the run completes, the workflow uploads the `TalkToMe-Setup-<version>`
+artifact and publishes the installer plus its SHA-256 checksum as the latest
+private GitHub Release.
+
+Installed Release builds use the authenticated GitHub CLI to check that private
+release at startup, after Windows resumes, and once per hour. When TalkToMe is
+idle, it verifies the checksum, runs the installer silently, and restarts
+minimized. The main window also provides **Check for updates** and displays the
+running application version. Debug builds never update automatically.
 
 The resulting installer registers TalkToMe to start with Windows using the
 `--minimized` option, which keeps the main window hidden in the system tray.

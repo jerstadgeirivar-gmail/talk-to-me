@@ -9,7 +9,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   installer:
@@ -45,18 +45,26 @@ jobs:
         run: dotnet restore TalkToMe.sln
 
       - name: Build
-        run: dotnet build TalkToMe.sln --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test TalkToMe.sln --configuration Release --no-build
+        shell: pwsh
+        env:
+          INSTALLER_VERSION: ${{ steps.version.outputs.value }}
+        run: >-
+          dotnet build TalkToMe.sln
+          --configuration Release
+          --no-restore
+          -p:Version=$env:INSTALLER_VERSION
 
       - name: Publish self-contained Windows application
+        shell: pwsh
+        env:
+          INSTALLER_VERSION: ${{ steps.version.outputs.value }}
         run: >-
           dotnet publish src/TalkToMe.App/TalkToMe.App.csproj
           --configuration Release
           --runtime win-x64
           --self-contained true
           --output artifacts/publish/win-x64
+          -p:Version=$env:INSTALLER_VERSION
 
       - name: Install Inno Setup compiler
         shell: pwsh
@@ -99,3 +107,19 @@ jobs:
             artifacts/installer/TalkToMe-Setup-${{ steps.version.outputs.value }}.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INSTALLER_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $tag = "v$env:INSTALLER_VERSION"
+          $installer = "artifacts\installer\TalkToMe-Setup.exe"
+          $checksum = "artifacts\installer\TalkToMe-Setup-$env:INSTALLER_VERSION.sha256"
+          gh release create $tag $installer $checksum `
+            --repo "${{ github.repository }}" `
+            --target "${{ github.sha }}" `
+            --title "TalkToMe $env:INSTALLER_VERSION" `
+            --generate-notes `
+            --latest

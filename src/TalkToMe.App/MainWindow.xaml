@@ -17,6 +17,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid>
@@ -261,6 +262,34 @@
                     </Style>
                 </Button.Style>
             </Button>
+        </Grid>
+
+        <Grid Grid.Row="5" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center"
+                       FontSize="11"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       Text="{Binding VersionText}"
+                       AutomationProperties.AutomationId="ApplicationVersionText" />
+            <TextBlock Grid.Column="1"
+                       Margin="10,0"
+                       VerticalAlignment="Center"
+                       FontSize="11"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       Text="{Binding UpdateStatusText}"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding UpdateStatusText}"
+                       AutomationProperties.AutomationId="UpdateStatusText" />
+            <Button Grid.Column="2"
+                    Padding="10,4"
+                    Style="{StaticResource SecondaryButton}"
+                    Content="Check for updates"
+                    Command="{Binding CheckForUpdatesCommand}"
+                    AutomationProperties.AutomationId="CheckForUpdatesButton" />
         </Grid>
     </Grid>
 </Window>

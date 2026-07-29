@@ -10,6 +10,7 @@ public partial class App : System.Windows.Application, IDisposable
     private SingleInstanceCoordinator? _singleInstance;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private LocalVoiceCommandService? _voiceCommandService;
+    private UpdateCoordinator? _updateCoordinator;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -93,6 +94,21 @@ public partial class App : System.Windows.Application, IDisposable
         bool voiceCommandsStarted =
             settings.VoiceCommandsEnabled is not false && _voiceCommandService.Start();
         viewModel.ShowVoiceCommandStatus(voiceCommandsStarted);
+#if !DEBUG
+        if (options.DiagnosticDataDirectory is null &&
+            options.DiagnosticAudioPath is null &&
+            IsInstalledApplication())
+        {
+            _updateCoordinator = new UpdateCoordinator(new GitHubUpdateService(), viewModel);
+            _updateCoordinator.Start();
+        }
+        else
+        {
+            viewModel.ConfigureUpdates("Portable build", null);
+        }
+#else
+        viewModel.ConfigureUpdates("Development build", null);
+#endif
         if (options.StartMinimized)
         {
             window.Hide();
@@ -113,6 +129,8 @@ public partial class App : System.Windows.Application, IDisposable
         _singleInstance = null;
         _voiceCommandService?.Dispose();
         _voiceCommandService = null;
+        _updateCoordinator?.Dispose();
+        _updateCoordinator = null;
         GC.SuppressFinalize(this);
     }
 
@@ -143,6 +161,17 @@ public partial class App : System.Windows.Application, IDisposable
         return Path.Combine(
             TalkToMeDataPaths.PendingAudioDirectory,
             $"recording-{DateTime.UtcNow:yyyyMMdd-HHmmss}.wav");
+    }
+
+    private static bool IsInstalledApplication()
+    {
+        string installedDirectory = Path.GetFullPath(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Programs",
+            "TalkToMe"));
+        string processDirectory = Path.GetFullPath(
+            Path.GetDirectoryName(Environment.ProcessPath) ?? string.Empty);
+        return processDirectory.Equals(installedDirectory, StringComparison.OrdinalIgnoreCase);
     }
 
     private void InitializeTray(MainWindowViewModel viewModel, MainWindow window)
