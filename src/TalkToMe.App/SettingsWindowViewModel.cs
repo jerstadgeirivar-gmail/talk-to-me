@@ -18,7 +18,7 @@ public sealed class SettingsWindowViewModel(
     private bool _clipboardOnlyMode;
     private string _targetWindowPolicy = "OriginalTarget";
     private string _hotkey = "Win+<";
-    private bool _voiceCommandsEnabled = true;
+    private bool _voiceCommandsEnabled;
     private string _diagnosticLoggingLevel = "Information";
     private string _keyStatusText = "Not configured";
     private string _statusText = string.Empty;
@@ -115,7 +115,7 @@ public sealed class SettingsWindowViewModel(
         ClipboardOnlyMode = settings.ClipboardOnlyMode;
         TargetWindowPolicy = settings.TargetWindowPolicy;
         Hotkey = settings.Hotkey;
-        VoiceCommandsEnabled = settings.VoiceCommandsEnabled ?? true;
+        VoiceCommandsEnabled = settings.VoiceCommandsEnabled ?? false;
         DiagnosticLoggingLevel = settings.DiagnosticLoggingLevel;
         KeyStatusText = await secretStore.HasSecretAsync(cancellationToken)
             ? "Configured"

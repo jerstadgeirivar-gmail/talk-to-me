@@ -200,6 +200,31 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
+    public async Task HandleHotkeyAsync(
+        Action beforeRecording,
+        Action recordingStopped)
+    {
+        if (_stateController.Current == DictationState.ReadyToInsert &&
+            !string.IsNullOrWhiteSpace(TranscriptText))
+        {
+            ToggleRecording(insertAfterTranscription: true);
+            return;
+        }
+
+        if (IsRecording)
+        {
+            await StopRecordingAsync(TimeSpan.Zero, recordingStopped);
+            return;
+        }
+
+        if (CanStartRecording())
+        {
+            beforeRecording();
+            _insertAfterTranscription = true;
+            await StartRecordingAsync();
+        }
+    }
+
     public void ShowHotkeyRegistrationFailure(string hotkey)
     {
         StatusText = $"The {hotkey} shortcut is already in use";

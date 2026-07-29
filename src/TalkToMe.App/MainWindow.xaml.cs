@@ -120,7 +120,9 @@ public partial class MainWindow : Window
     {
         if (message == _hotkeyService.WindowMessage && wordParameter == _hotkeyService.HotkeyId)
         {
-            _viewModel.ToggleRecording(insertAfterTranscription: true);
+            _ = _viewModel.HandleHotkeyAsync(
+                VoiceCommandFeedback.Play,
+                VoiceCommandFeedback.Play);
             handled = true;
         }
 

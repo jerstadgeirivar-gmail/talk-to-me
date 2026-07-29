@@ -6,9 +6,10 @@ In addition to the global hotkey, TalkToMe can listen locally for the English
 keyword **computer**. The first occurrence plays a short chime and starts
 recording; the next occurrence stops recording, plays the chime again, removes
 the closing keyword from the saved audio, and runs the normal transcription and
-insertion flow. This local listener is enabled by default and can be disabled in
-**Settings → Dictation preferences**. Only the completed dictation recording is
-sent to the configured Azure deployment.
+insertion flow. This local listener is disabled by default and can be enabled in
+**Settings → Dictation preferences**. The same chime confirms recording start
+and stop when using the global hotkey. Only the completed dictation recording
+is sent to the configured Azure deployment.
 
 ## Prerequisites
 

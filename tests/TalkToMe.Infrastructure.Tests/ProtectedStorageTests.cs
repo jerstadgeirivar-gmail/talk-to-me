@@ -59,7 +59,7 @@ public sealed class ProtectedStorageTests
     }
 
     [Fact]
-    public async Task LegacySettingsWithoutVoiceCommandPreferenceRemainMigratable()
+    public async Task LegacySettingsWithoutVoiceCommandPreferenceDefaultToDisabled()
     {
         string directory = CreateTemporaryDirectory();
         string path = Path.Combine(directory, "settings.json");
@@ -73,7 +73,7 @@ public sealed class ProtectedStorageTests
             ApplicationSettings actual = await store.LoadAsync(CancellationToken.None);
 
             Assert.Null(actual.VoiceCommandsEnabled);
-            Assert.True(actual.VoiceCommandsEnabled is not false);
+            Assert.True(actual.VoiceCommandsEnabled is not true);
         }
         finally
         {

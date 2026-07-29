@@ -92,7 +92,7 @@ public partial class App : System.Windows.Application, IDisposable
         _voiceCommandService.CommandDetected += (_, eventArgs) =>
             Dispatcher.BeginInvoke(() => HandleVoiceCommandAsync(viewModel, eventArgs));
         bool voiceCommandsStarted =
-            settings.VoiceCommandsEnabled is not false && _voiceCommandService.Start();
+            settings.VoiceCommandsEnabled is true && _voiceCommandService.Start();
         viewModel.ShowVoiceCommandStatus(voiceCommandsStarted);
 #if !DEBUG
         if (options.DiagnosticDataDirectory is null &&

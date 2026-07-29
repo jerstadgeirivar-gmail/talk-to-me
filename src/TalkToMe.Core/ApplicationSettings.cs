@@ -20,7 +20,7 @@ public sealed record ApplicationSettings
 
     public string Hotkey { get; init; } = "Win+<";
 
-    public bool? VoiceCommandsEnabled { get; init; } = true;
+    public bool? VoiceCommandsEnabled { get; init; }
 
     public string DiagnosticLoggingLevel { get; init; } = "Information";
 }
