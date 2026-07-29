@@ -24,6 +24,7 @@ public partial class MainWindow : Window
         ISecretStore secretStore,
         LocalVoiceCommandService voiceCommandService)
     {
+        
         _viewModel = viewModel;
         _hotkeyService = hotkeyService;
         _settingsStore = settingsStore;
