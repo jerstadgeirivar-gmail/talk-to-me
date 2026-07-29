@@ -35,6 +35,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private WindowTarget? _windowTarget;
     private RecordingResult? _lastRecording;
     private string _targetText = "No target captured — focus a text field and use the hotkey";
+    private string _voiceCommandText = "Off";
 
     public MainWindowViewModel(
         IAudioSource audioSource,
@@ -167,6 +168,36 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         StatusText = $"The {hotkey} shortcut is already in use";
     }
 
+    public string VoiceCommandText
+    {
+        get => _voiceCommandText;
+        private set => SetProperty(ref _voiceCommandText, value);
+    }
+
+    public void ShowVoiceCommandStatus(bool listening)
+    {
+        VoiceCommandText = listening ? "Listening for “computer” locally" : "Off";
+    }
+
+    public async Task StartFromVoiceCommandAsync()
+    {
+        if (!CanStartRecording())
+        {
+            StatusText = "Voice command heard, but dictation is not ready";
+            return;
+        }
+
+        _insertAfterTranscription = true;
+        await StartRecordingAsync();
+    }
+
+    public bool CanHandleVoiceCommand => IsRecording || CanStartRecording();
+
+    public Task StopFromVoiceCommandAsync(TimeSpan trailingAudio, Action recordingStopped) =>
+        IsRecording
+            ? StopRecordingAsync(trailingAudio, recordingStopped)
+            : Task.CompletedTask;
+
     public void CopyTranscriptToClipboard()
     {
         if (!string.IsNullOrWhiteSpace(TranscriptText))
@@ -242,7 +273,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
     }
 
-    private async Task StopRecordingAsync()
+    private Task StopRecordingAsync() => StopRecordingAsync(TimeSpan.Zero, null);
+
+    private async Task StopRecordingAsync(TimeSpan trailingAudio, Action? recordingStopped)
     {
         try
         {
@@ -250,7 +283,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             IsRecording = false;
             StatusText = "Stopping recording";
             RecordingResult result = await _recordingService.StopAsync(_lifetimeCancellation.Token);
+            if (trailingAudio > TimeSpan.Zero)
+            {
+                result = WaveAudioTrimmer.TrimEnd(result, trailingAudio);
+            }
+
             _lastRecording = result;
+            recordingStopped?.Invoke();
             _stateController.TransitionTo(DictationState.PreparingAudio);
             DurationText = FormatDuration(result.Duration);
             InputLevel = 0;

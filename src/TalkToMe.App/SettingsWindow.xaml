@@ -104,6 +104,16 @@
                                    TextWrapping="Wrap" />
 
                         <CheckBox Margin="0,16,0,0"
+                                  Content="Enable “computer” voice command"
+                                  IsChecked="{Binding VoiceCommandsEnabled}"
+                                  AutomationProperties.AutomationId="VoiceCommandsEnabledCheckBox" />
+                        <TextBlock Margin="24,4,0,0"
+                                   FontSize="11"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   Text="Listens locally for “computer”. Say it once to start and again to stop and insert."
+                                   TextWrapping="Wrap" />
+
+                        <CheckBox Margin="0,14,0,0"
                                   Content="Keep audio after failed transcription"
                                   IsChecked="{Binding RetainFailedAudio}"
                                   AutomationProperties.AutomationId="RetainFailedAudioCheckBox" />

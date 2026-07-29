@@ -18,6 +18,7 @@ public sealed class SettingsWindowViewModel(
     private bool _clipboardOnlyMode;
     private string _targetWindowPolicy = "OriginalTarget";
     private string _hotkey = "Win+<";
+    private bool _voiceCommandsEnabled = true;
     private string _diagnosticLoggingLevel = "Information";
     private string _keyStatusText = "Not configured";
     private string _statusText = string.Empty;
@@ -84,6 +85,12 @@ public sealed class SettingsWindowViewModel(
         set => SetProperty(ref _hotkey, value);
     }
 
+    public bool VoiceCommandsEnabled
+    {
+        get => _voiceCommandsEnabled;
+        set => SetProperty(ref _voiceCommandsEnabled, value);
+    }
+
     public string KeyStatusText
     {
         get => _keyStatusText;
@@ -108,6 +115,7 @@ public sealed class SettingsWindowViewModel(
         ClipboardOnlyMode = settings.ClipboardOnlyMode;
         TargetWindowPolicy = settings.TargetWindowPolicy;
         Hotkey = settings.Hotkey;
+        VoiceCommandsEnabled = settings.VoiceCommandsEnabled ?? true;
         DiagnosticLoggingLevel = settings.DiagnosticLoggingLevel;
         KeyStatusText = await secretStore.HasSecretAsync(cancellationToken)
             ? "Configured"
@@ -117,6 +125,7 @@ public sealed class SettingsWindowViewModel(
     public async Task<bool> SaveAsync(
         string replacementKey,
         Func<string, bool> applyHotkey,
+        Func<bool, bool> applyVoiceCommands,
         CancellationToken cancellationToken)
     {
         if (!Validate())
@@ -141,9 +150,15 @@ public sealed class SettingsWindowViewModel(
             ClipboardOnlyMode = ClipboardOnlyMode,
             TargetWindowPolicy = TargetWindowPolicy,
             Hotkey = Hotkey.Trim(),
+            VoiceCommandsEnabled = VoiceCommandsEnabled,
             DiagnosticLoggingLevel = DiagnosticLoggingLevel,
         };
         await settingsStore.SaveAsync(settings, cancellationToken);
+        if (!applyVoiceCommands(VoiceCommandsEnabled))
+        {
+            StatusText = "Settings saved, but no local English Windows speech recognizer is available.";
+            return true;
+        }
         if (!string.IsNullOrWhiteSpace(replacementKey))
         {
             await secretStore.SetSecretAsync(replacementKey, cancellationToken);

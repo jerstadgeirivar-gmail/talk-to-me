@@ -1,5 +1,7 @@
 #define MyAppName "TalkToMe"
+#ifndef MyAppVersion
 #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "TalkToMe"
 #define MyAppExeName "TalkToMe.App.exe"
 

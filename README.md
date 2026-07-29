@@ -2,6 +2,14 @@
 
 TalkToMe is a Windows 11 WPF utility for recording Norwegian dictation, transcribing through an Azure OpenAI deployment, and inserting the completed text into the originally focused application.
 
+In addition to the global hotkey, TalkToMe can listen locally for the English
+keyword **computer**. The first occurrence plays a short chime and starts
+recording; the next occurrence stops recording, plays the chime again, removes
+the closing keyword from the saved audio, and runs the normal transcription and
+insertion flow. This local listener is enabled by default and can be disabled in
+**Settings → Dictation preferences**. Only the completed dictation recording is
+sent to the configured Azure deployment.
+
 ## Prerequisites
 
 - Windows 11
@@ -22,15 +30,19 @@ Launch the development build:
 src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe
 ```
 
-Build the per-user Windows installer after publishing:
+Installers are produced by the manual **Build Windows installer** workflow in
+the repository's **Actions** tab. Choose **Run workflow** and optionally enter a
+three- or four-part version such as `1.2.0`. If no version is supplied, the
+workflow uses `1.0.<run number>`.
 
-```powershell
-dotnet publish src\TalkToMe.App\TalkToMe.App.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts\publish\win-x64
-iscc packaging\TalkToMe.iss
-```
+After the run completes, download the `TalkToMe-Setup-<version>` artifact. It
+contains `TalkToMe-Setup.exe` and its SHA-256 checksum. The workflow restores,
+builds, runs all tests, publishes the self-contained Windows x64 application,
+and compiles the installer. It does not create a GitHub Release or install the
+application.
 
-The installer registers TalkToMe to start with Windows using the `--minimized`
-option, which keeps the main window hidden in the system tray.
+The resulting installer registers TalkToMe to start with Windows using the
+`--minimized` option, which keeps the main window hidden in the system tray.
 
 The default global toggle is `Ctrl+Alt+F9`. The normal flow captures the foreground target on the first press and stops recording on the second. The main window can also start and stop recording when a separate target is not required.
 

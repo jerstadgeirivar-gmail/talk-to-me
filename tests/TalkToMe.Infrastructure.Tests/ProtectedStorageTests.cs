@@ -58,6 +58,29 @@ public sealed class ProtectedStorageTests
         }
     }
 
+    [Fact]
+    public async Task LegacySettingsWithoutVoiceCommandPreferenceRemainMigratable()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "settings.json");
+        try
+        {
+            await File.WriteAllTextAsync(
+                path,
+                """{"AzureEndpoint":"","AzureDeployment":"","Hotkey":"Win+<"}""");
+
+            JsonApplicationSettingsStore store = new(path);
+            ApplicationSettings actual = await store.LoadAsync(CancellationToken.None);
+
+            Assert.Null(actual.VoiceCommandsEnabled);
+            Assert.True(actual.VoiceCommandsEnabled is not false);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string CreateTemporaryDirectory()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"talk-to-me-tests-{Guid.NewGuid():N}");

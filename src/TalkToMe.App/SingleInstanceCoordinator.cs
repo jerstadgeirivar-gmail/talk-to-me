@@ -14,8 +14,10 @@ internal sealed class SingleInstanceCoordinator : IDisposable
         IsPrimary = isPrimary;
         if (!isPrimary)
         {
+#if !DEBUG
             using EventWaitHandle activationEvent = EventWaitHandle.OpenExisting(ActivationEventName);
             activationEvent.Set();
+#endif
             return;
         }
 

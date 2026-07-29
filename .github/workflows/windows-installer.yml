@@ -1,0 +1,101 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Optional installer version (for example 1.2.0)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: Build and package
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve installer version
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $version = "$env:REQUESTED_VERSION".Trim()
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "1.0.${{ github.run_number }}"
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+            throw "Version '$version' must contain three or four numeric parts."
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore TalkToMe.sln
+
+      - name: Build
+        run: dotnet build TalkToMe.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test TalkToMe.sln --configuration Release --no-build
+
+      - name: Publish self-contained Windows application
+        run: >-
+          dotnet publish src/TalkToMe.App/TalkToMe.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output artifacts/publish/win-x64
+
+      - name: Install Inno Setup compiler
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        env:
+          INSTALLER_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            throw "Inno Setup compiler was installed but ISCC.exe could not be found."
+          }
+          & $iscc "/DMyAppVersion=$env:INSTALLER_VERSION" "packaging\TalkToMe.iss"
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        env:
+          INSTALLER_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $installer = "artifacts\installer\TalkToMe-Setup.exe"
+          $output = "artifacts\installer\TalkToMe-Setup-$env:INSTALLER_VERSION.sha256"
+          $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  TalkToMe-Setup.exe" | Set-Content -LiteralPath $output -Encoding ascii
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: TalkToMe-Setup-${{ steps.version.outputs.value }}
+          path: |
+            artifacts/installer/TalkToMe-Setup.exe
+            artifacts/installer/TalkToMe-Setup-${{ steps.version.outputs.value }}.sha256
+          if-no-files-found: error
+          retention-days: 30

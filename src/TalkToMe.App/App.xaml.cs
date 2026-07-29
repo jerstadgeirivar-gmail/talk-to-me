@@ -9,6 +9,7 @@ public partial class App : System.Windows.Application, IDisposable
 {
     private SingleInstanceCoordinator? _singleInstance;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
+    private LocalVoiceCommandService? _voiceCommandService;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -17,7 +18,16 @@ public partial class App : System.Windows.Application, IDisposable
         _singleInstance = new SingleInstanceCoordinator();
         if (!_singleInstance.IsPrimary)
         {
+#if DEBUG
+            System.Windows.MessageBox.Show(
+                "TalkToMe is already running. Exit the installed version from its system tray icon before starting with F5.",
+                "TalkToMe debug startup blocked",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(10);
+#else
             Shutdown(0);
+#endif
             return;
         }
 
@@ -72,11 +82,17 @@ public partial class App : System.Windows.Application, IDisposable
             outputPath,
             allowRecordOnly: options.DiagnosticAudioPath is not null && options.DiagnosticTranscript is null,
             recoveredRecording);
-        MainWindow window = new(viewModel, hotkeyService, settingsStore, secretStore);
+        _voiceCommandService = new LocalVoiceCommandService();
+        MainWindow window = new(viewModel, hotkeyService, settingsStore, secretStore, _voiceCommandService);
         MainWindow = window;
         window.Show();
         _singleInstance.ActivationRequested += () => Dispatcher.BeginInvoke(() => ShowMainWindow(window));
         InitializeTray(viewModel, window);
+        _voiceCommandService.CommandDetected += (_, eventArgs) =>
+            Dispatcher.BeginInvoke(() => HandleVoiceCommandAsync(viewModel, eventArgs));
+        bool voiceCommandsStarted =
+            settings.VoiceCommandsEnabled is not false && _voiceCommandService.Start();
+        viewModel.ShowVoiceCommandStatus(voiceCommandsStarted);
         if (options.StartMinimized)
         {
             window.Hide();
@@ -95,7 +111,31 @@ public partial class App : System.Windows.Application, IDisposable
         _trayIcon = null;
         _singleInstance?.Dispose();
         _singleInstance = null;
+        _voiceCommandService?.Dispose();
+        _voiceCommandService = null;
         GC.SuppressFinalize(this);
+    }
+
+    private static async Task HandleVoiceCommandAsync(
+        MainWindowViewModel viewModel,
+        VoiceCommandDetectedEventArgs eventArgs)
+    {
+        if (!viewModel.CanHandleVoiceCommand)
+        {
+            return;
+        }
+
+        if (viewModel.IsRecording)
+        {
+            await viewModel.StopFromVoiceCommandAsync(
+                eventArgs.TrailingAudio,
+                VoiceCommandFeedback.Play);
+            return;
+        }
+
+        VoiceCommandFeedback.Play();
+        await Task.Delay(100);
+        await viewModel.StartFromVoiceCommandAsync();
     }
 
     private static string CreatePendingAudioPath()

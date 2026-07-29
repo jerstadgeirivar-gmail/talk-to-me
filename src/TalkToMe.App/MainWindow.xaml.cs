@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Interop;
 using TalkToMe.Core;
+using TalkToMe.Infrastructure;
 
 namespace TalkToMe.App;
 
@@ -11,6 +12,7 @@ public partial class MainWindow : Window
     private readonly IGlobalHotkeyService _hotkeyService;
     private readonly IApplicationSettingsStore _settingsStore;
     private readonly ISecretStore _secretStore;
+    private readonly LocalVoiceCommandService _voiceCommandService;
     private HwndSource? _windowSource;
     private bool _closeRequested;
     private bool _canClose;
@@ -19,12 +21,14 @@ public partial class MainWindow : Window
         MainWindowViewModel viewModel,
         IGlobalHotkeyService hotkeyService,
         IApplicationSettingsStore settingsStore,
-        ISecretStore secretStore)
+        ISecretStore secretStore,
+        LocalVoiceCommandService voiceCommandService)
     {
         _viewModel = viewModel;
         _hotkeyService = hotkeyService;
         _settingsStore = settingsStore;
         _secretStore = secretStore;
+        _voiceCommandService = voiceCommandService;
         InitializeComponent();
         DataContext = viewModel;
     }
@@ -33,11 +37,26 @@ public partial class MainWindow : Window
     {
         SettingsWindow settingsWindow = new(
             new SettingsWindowViewModel(_settingsStore, _secretStore),
-            ApplyHotkey)
+            ApplyHotkey,
+            ApplyVoiceCommands)
         {
             Owner = this,
         };
         settingsWindow.ShowDialog();
+    }
+
+    private bool ApplyVoiceCommands(bool enabled)
+    {
+        if (!enabled)
+        {
+            _voiceCommandService.Stop();
+            _viewModel.ShowVoiceCommandStatus(false);
+            return true;
+        }
+
+        bool started = _voiceCommandService.Start();
+        _viewModel.ShowVoiceCommandStatus(started);
+        return started;
     }
 
     private bool ApplyHotkey(string hotkey)
