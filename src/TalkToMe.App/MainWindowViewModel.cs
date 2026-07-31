@@ -83,7 +83,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         else if (_transcriptionProvider is null && !_allowRecordOnly)
         {
-            _statusText = "Azure setup is missing";
+            _statusText = "Transcription provider is unavailable";
         }
     }
 
@@ -176,6 +176,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     }
 
     public void SetUpdateStatus(string status) => UpdateStatusText = status;
+
+    public void ShowProviderStatus(string status) => StatusText = status;
 
     public void ToggleRecording(bool insertAfterTranscription = false)
     {
@@ -375,7 +377,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         catch (TranscriptionException exception)
         {
-            TransitionToFailure(GetTranscriptionFailureMessage(exception.Category));
+            TransitionToFailure(GetTranscriptionFailureMessage(exception));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -460,7 +462,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         catch (TranscriptionException exception)
         {
-            TransitionToFailure(GetTranscriptionFailureMessage(exception.Category));
+            TransitionToFailure(GetTranscriptionFailureMessage(exception));
         }
     }
 
@@ -545,17 +547,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         RaiseRecoveryCanExecuteChanged();
     }
 
-    private static string GetTranscriptionFailureMessage(TranscriptionFailureCategory category) => category switch
-    {
-        TranscriptionFailureCategory.Authentication => "Azure rejected the API key",
-        TranscriptionFailureCategory.Authorization => "Access to the deployment was denied",
-        TranscriptionFailureCategory.DeploymentNotFound => "The deployment was not found",
-        TranscriptionFailureCategory.RateLimited => "Azure is busy. Try again later",
-        TranscriptionFailureCategory.RequestTooLarge => "The recording is too large",
-        TranscriptionFailureCategory.Network => "Unable to reach Azure",
-        TranscriptionFailureCategory.Timeout => "Azure timed out",
-        _ => "Transcription failed",
-    };
+    private static string GetTranscriptionFailureMessage(TranscriptionException exception) =>
+        !string.IsNullOrWhiteSpace(exception.Message)
+            ? exception.Message
+            : exception.Category switch
+            {
+                TranscriptionFailureCategory.Authentication => "The provider rejected the credential",
+                TranscriptionFailureCategory.Authorization => "Access to the deployment was denied",
+                TranscriptionFailureCategory.DeploymentNotFound => "The deployment was not found",
+                TranscriptionFailureCategory.RateLimited => "The provider is busy. Try again later",
+                TranscriptionFailureCategory.RequestTooLarge => "The recording is too large",
+                TranscriptionFailureCategory.Network => "Unable to reach the selected provider",
+                TranscriptionFailureCategory.Timeout => "The selected provider timed out",
+                TranscriptionFailureCategory.CapabilityUnavailable => "The selected provider does not support speech-to-text",
+                TranscriptionFailureCategory.ModelMissing => "The selected transcription model is missing",
+                TranscriptionFailureCategory.ModelCorrupt => "The selected transcription model is corrupt",
+                TranscriptionFailureCategory.RuntimeUnavailable => "The local transcription runtime is unavailable",
+                TranscriptionFailureCategory.InsufficientMemory => "Not enough memory for local transcription",
+                _ => "Transcription failed",
+            };
 
     private static string FormatDuration(TimeSpan duration) =>
         duration.ToString(@"hh\:mm\:ss\.f", CultureInfo.InvariantCulture);

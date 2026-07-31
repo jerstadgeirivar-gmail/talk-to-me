@@ -2,11 +2,23 @@ namespace TalkToMe.Core;
 
 public sealed record ApplicationSettings
 {
+    public string? TranscriptionProviderId { get; init; }
+
+    public string LocalWhisperModel { get; init; } = "small-q5_1";
+
     public string AzureEndpoint { get; init; } = string.Empty;
 
     public string AzureDeployment { get; init; } = string.Empty;
 
     public string AzureApiVersion { get; init; } = "2025-04-01-preview";
+
+    public string LmStudioBaseUrl { get; init; } = "http://localhost:1234";
+
+    public string LmStudioModel { get; init; } = string.Empty;
+
+    public string OllamaBaseUrl { get; init; } = "http://localhost:11434";
+
+    public string OllamaModel { get; init; } = string.Empty;
 
     public string TechnicalVocabulary { get; init; } = string.Empty;
 

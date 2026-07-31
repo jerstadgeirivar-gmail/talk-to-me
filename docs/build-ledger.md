@@ -113,3 +113,19 @@ Evidence: `artifacts/validation/release-final/run-1/` and `artifacts/validation/
 Known limitation: This is a verified release checkpoint, not full specification completion. Live Azure, physical microphone/device behavior, packaged Notepad/VS Code compatibility, non-activating overlay, crash metadata/retention, connection test, microphone/hotkey settings, startup registration, and automated tray interaction remain as classified in `docs/requirements-status.md`.
 
 Next slice: Resolve Azure endpoint/deployment and interactive Azure sign-in, run the live transcription journey, then close the remaining platform/product gaps in `docs/requirements-status.md`.
+
+## Slice I: Provider adapters and offline default
+
+Capability implemented: Stable provider IDs/descriptors, central registry/factory, serialized lifecycle coordinator, deterministic Azure migration/new-install Local Whisper selection, namespaced DPAPI secrets, conditional tabbed settings, provider testing, model repair, endpoint security, Local Whisper CPU adapter, preserved Azure adapter, and honest LM Studio/Ollama profiles.
+
+How it was exercised: Verified current primary API documentation; inspected installed LM Studio and Ollama; called running Ollama 0.31.1 at `/api/version`; attempted installed LM Studio server startup and recorded it unreachable; verified the 190,085,487-byte model SHA-256; sent the real Norwegian MP3 through production recording and Local Whisper; exercised both server profiles through the real Settings UI; visually inspected all resulting screenshots.
+
+Observed result: Debug build and 18 tests pass. Local Whisper produced a 243-character Norwegian transcript with multiple stable semantic anchors after 24 seconds of production audio. Ollama was reachable and explicitly non-STT; LM Studio was installed but its server remained unreachable and the UI still stated the documented non-STT limitation. No audio was sent to either text server.
+
+Evidence: `artifacts/validation/local-whisper-pass-5/`, `artifacts/validation/settings-providers-2/`, and `artifacts/validation/server-capabilities/`.
+
+Packaging result after the download-on-first-run pivot: Release build and 18 tests passed. Neither self-contained publish nor installed application contains `ggml-small-q5_1.bin`. Inno Setup 6.7.3 produced a 55,960,288-byte installer with SHA-256 `f6daa1fbb30223e3f721d7b688f74bc272fefb6839f921c8a2690a049f885924`; package secret scan passed. The exact isolated installed Release detected the absent model, displayed consent and progress UI, downloaded and verified 190,085,487 bytes, became ready, and then completed the 24-second Norwegian production transcription journey.
+
+First-run evidence: `artifacts/validation/installed-first-run-model-final/`. Post-setup transcription evidence: `artifacts/validation/installed-first-run-transcription/`.
+
+Known limitation: The first automated Local Whisper insertion reached a real transcript but the existing target activation step failed and left text on the clipboard; transcript-only production journeys pass in Debug and installed Release. First-run setup requires internet access to the pinned Hugging Face URL. No Azure credential/deployment exists locally.

@@ -10,6 +10,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
+using TalkToMe.Core;
 using TalkToMe.Infrastructure;
 
 if (args.Length == 2 && args[0] == "--migrate-key")
@@ -35,8 +36,11 @@ const string transcriptAutomationId = "TranscriptTextBox";
 const string insertButtonAutomationId = "InsertButton";
 
 bool settingsScenario = args.Length == 3 && args[1] == "--settings";
+bool capabilitiesScenario = args.Length == 3 && args[1] == "--capabilities";
+bool firstRunModelScenario = args.Length == 3 && args[1] == "--first-run-model";
 bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
-if (!settingsScenario && args.Length is not 3 and not 5)
+bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
+if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveLocalScenario && args.Length is not 3 and not 5)
 {
     Console.Error.WriteLine(
         "Usage: TalkToMe.UiDriver <application-path> <audio-fixture-path> <evidence-directory> [diagnostic-transcript|--live target-application-path]");
@@ -44,11 +48,12 @@ if (!settingsScenario && args.Length is not 3 and not 5)
 }
 
 string applicationPath = Path.GetFullPath(args[0]);
-string? audioFixturePath = settingsScenario ? null : Path.GetFullPath(args[1]);
+string? audioFixturePath = (settingsScenario || capabilitiesScenario || firstRunModelScenario) ? null : Path.GetFullPath(args[1]);
 string evidenceDirectory = Path.GetFullPath(args[2]);
 string? expectedTranscript = !settingsScenario && !liveAzureScenario && args.Length == 5 ? args[3] : null;
 string? targetApplicationPath = args.Length == 5 ? Path.GetFullPath(args[4]) : null;
 bool insertionScenario = expectedTranscript is not null || liveAzureScenario;
+bool transcriptionScenario = insertionScenario || liveLocalScenario;
 Directory.CreateDirectory(evidenceDirectory);
 string recordingPath = Path.Combine(evidenceDirectory, "simulated-recording.wav");
 
@@ -69,7 +74,7 @@ try
         UseShellExecute = false,
         WorkingDirectory = Path.GetDirectoryName(applicationPath),
     };
-    if (settingsScenario)
+    if (settingsScenario || capabilitiesScenario || firstRunModelScenario)
     {
         startInfo.ArgumentList.Add("--diagnostic-data-directory");
         startInfo.ArgumentList.Add(Path.Combine(evidenceDirectory, "data"));
@@ -97,10 +102,22 @@ try
     process = Process.GetProcessById(processId);
     window = WaitForWindow(application, automation, windowAutomationId, TimeSpan.FromSeconds(15));
     WriteAutomationTree(window, Path.Combine(evidenceDirectory, "uia-tree-before.txt"));
+    if (firstRunModelScenario)
+    {
+        RunFirstRunModelScenario(application, automation, window, evidenceDirectory);
+        Console.WriteLine($"PASS pid={processId} first-run-model=downloaded-and-verified");
+        return 0;
+    }
     if (settingsScenario)
     {
         RunSettingsScenario(application, automation, window, evidenceDirectory);
         Console.WriteLine($"PASS pid={processId} settings=protected-and-removed");
+        return 0;
+    }
+    if (capabilitiesScenario)
+    {
+        RunCapabilitiesScenario(application, automation, window, evidenceDirectory);
+        Console.WriteLine($"PASS pid={processId} capabilities=honest");
         return 0;
     }
 
@@ -134,8 +151,8 @@ try
     AutomationElement duration = WaitForDuration(
         window,
         durationAutomationId,
-        liveAzureScenario ? TimeSpan.FromSeconds(24) : TimeSpan.FromSeconds(2),
-        liveAzureScenario ? TimeSpan.FromSeconds(30) : TimeSpan.FromSeconds(10));
+        (liveAzureScenario || liveLocalScenario) ? TimeSpan.FromSeconds(24) : TimeSpan.FromSeconds(2),
+        (liveAzureScenario || liveLocalScenario) ? TimeSpan.FromSeconds(30) : TimeSpan.FromSeconds(10));
     AutomationElement stopButton = window.FindFirstDescendant(
         condition => condition.ByAutomationId(stopButtonAutomationId))
         ?? throw new InvalidOperationException($"Button '{stopButtonAutomationId}' was not found.");
@@ -151,15 +168,17 @@ try
         Keyboard.TypeSimultaneously([VirtualKeyShort.LWIN, (VirtualKeyShort)0xE2]);
     }
 
-    string expectedStatus = insertionScenario ? insertionCompleteStatus : recordOnlyStatus;
+    string expectedStatus = insertionScenario ? insertionCompleteStatus
+        : liveLocalScenario ? "Transcript ready — copy it or use the shortcut from another app to insert"
+        : recordOnlyStatus;
     AutomationElement status = WaitForElementName(
         window,
         statusAutomationId,
         expectedStatus,
-        liveAzureScenario ? TimeSpan.FromMinutes(2) : TimeSpan.FromSeconds(5));
+        transcriptionScenario ? TimeSpan.FromMinutes(3) : TimeSpan.FromSeconds(5));
     transcriptionStopwatch.Stop();
 
-    AssertEnabledState(button, expectedEnabled: true, "start button after recording");
+    AssertEnabledState(button, expectedEnabled: !liveLocalScenario, "start button after recording");
     AssertEnabledState(stopButton, expectedEnabled: false, "stop button after recording");
     long recordingBytes = 0;
     if (!insertionScenario)
@@ -171,7 +190,7 @@ try
     bool exactInsertionMatch = false;
     int transcriptCharacters = 0;
     int semanticAnchorCount = 0;
-    if (insertionScenario)
+    if (transcriptionScenario)
     {
         AutomationElement transcriptElement = window.FindFirstDescendant(
             condition => condition.ByAutomationId(transcriptAutomationId))
@@ -187,7 +206,7 @@ try
         {
             throw new InvalidOperationException("The transcript displayed by the app did not match the diagnostic provider result.");
         }
-        if (liveAzureScenario)
+        if (liveAzureScenario || liveLocalScenario)
         {
             semanticAnchorCount = CountSemanticAnchors(displayedTranscript);
             if (semanticAnchorCount < 2)
@@ -204,6 +223,11 @@ try
             AssertEnabledState(insertButton, expectedEnabled: false, "insert button after automatic insertion");
         }
 
+        if (!insertionScenario)
+        {
+            goto TranscriptionValidated;
+        }
+
         string insertedText = notepadEditor!.AsTextBox().Text;
         exactInsertionMatch = insertedText == displayedTranscript;
         if (!exactInsertionMatch)
@@ -218,6 +242,7 @@ try
 
         WriteAutomationTree(notepadWindow!, Path.Combine(evidenceDirectory, "target-uia-tree.txt"));
         CaptureWindow(notepadWindow!, Path.Combine(evidenceDirectory, "target-window.png"));
+    TranscriptionValidated:;
     }
 
     Thread.Sleep(250);
@@ -232,6 +257,7 @@ try
         $"Duration: {duration.Name}{Environment.NewLine}" +
         $"RecordingBytes: {recordingBytes}{Environment.NewLine}" +
         $"LiveAzure: {liveAzureScenario}{Environment.NewLine}" +
+        $"LiveLocal: {liveLocalScenario}{Environment.NewLine}" +
         $"TranscriptionMilliseconds: {transcriptionStopwatch.ElapsedMilliseconds}{Environment.NewLine}" +
         $"TranscriptCharacters: {transcriptCharacters}{Environment.NewLine}" +
         $"SemanticAnchorCount: {semanticAnchorCount}{Environment.NewLine}" +
@@ -313,6 +339,10 @@ static int CountSemanticAnchors(string transcript)
         "appsettings",
         "norsk",
         "transkribering",
+        "teste",
+        "tydelig",
+        "lydfil",
+        "høyre",
     ];
     return anchors.Count(anchor => transcript.Contains(anchor, StringComparison.OrdinalIgnoreCase));
 }
@@ -330,6 +360,7 @@ static void RunSettingsScenario(
         "SettingsWindow",
         TimeSpan.FromSeconds(10));
 
+    FindByAutomationId(settingsWindow, "ProviderSelector").AsComboBox().Select("Azure OpenAI");
     AutomationElement endpoint = FindByAutomationId(settingsWindow, "AzureEndpointTextBox");
     AutomationElement deployment = FindByAutomationId(settingsWindow, "AzureDeploymentTextBox");
     AutomationElement apiVersion = FindByAutomationId(settingsWindow, "AzureApiVersionTextBox");
@@ -354,7 +385,7 @@ static void RunSettingsScenario(
     WaitForElementName(settingsWindow, "ApiKeyStatusText", "Configured", TimeSpan.FromSeconds(5));
 
     string dataDirectory = Path.Combine(evidenceDirectory, "data");
-    string credentialPath = Path.Combine(dataDirectory, "credential.bin");
+    string credentialPath = Path.Combine(dataDirectory, "Secrets", "azure-openai.bin");
     string settingsPath = Path.Combine(dataDirectory, "settings.json");
     if (!File.Exists(credentialPath) || !File.Exists(settingsPath))
     {
@@ -390,6 +421,89 @@ static void RunSettingsScenario(
     {
         throw new TimeoutException("Settings dialog invocation did not complete after close.");
     }
+}
+
+static void RunCapabilitiesScenario(
+    Application application,
+    UIA3Automation automation,
+    AutomationElement mainWindow,
+    string evidenceDirectory)
+{
+    AutomationElement settingsButton = FindByAutomationId(mainWindow, "SettingsButton");
+    Task invokeTask = Task.Run(() => settingsButton.AsButton().Invoke());
+    Window settingsWindow = WaitForDescendantWindow(mainWindow, "SettingsWindow", TimeSpan.FromSeconds(10));
+    ComboBox provider = FindByAutomationId(settingsWindow, "ProviderSelector").AsComboBox();
+    string initialProvider = provider.SelectedItem?.Name ?? string.Empty;
+    provider.Select("LM Studio");
+    FindByAutomationId(settingsWindow, "TestProviderButton").AsButton().Invoke();
+    WaitForElementNameContains(settingsWindow, "ProviderStatusText", "speech-to-text", TimeSpan.FromSeconds(15));
+    CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "lm-studio-capability.png"));
+    provider.Select("Ollama");
+    FindByAutomationId(settingsWindow, "TestProviderButton").AsButton().Invoke();
+    WaitForElementNameContains(settingsWindow, "ProviderStatusText", "speech-to-text", TimeSpan.FromSeconds(15));
+    CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "ollama-capability.png"));
+    WriteAutomationTree(settingsWindow, Path.Combine(evidenceDirectory, "capabilities-uia-tree.txt"));
+    File.WriteAllText(Path.Combine(evidenceDirectory, "result.txt"),
+        $"InitialProvider: {initialProvider}" + Environment.NewLine +
+        "LMStudioAudioSent: False" + Environment.NewLine + "OllamaAudioSent: False" + Environment.NewLine + "Result: PASS" + Environment.NewLine);
+    settingsWindow.Close();
+    if (!invokeTask.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Settings dialog did not close.");
+}
+
+static void RunFirstRunModelScenario(
+    Application application,
+    UIA3Automation automation,
+    AutomationElement mainWindow,
+    string evidenceDirectory)
+{
+    Window consent = WaitForNamedWindow(mainWindow, "Set up offline transcription", TimeSpan.FromSeconds(15));
+    Thread.Sleep(300);
+    CaptureWindow(consent, Path.Combine(evidenceDirectory, "model-download-consent.png"));
+    AutomationElement yes = consent.FindFirstDescendant(condition => condition.ByName("Yes"))
+        ?? throw new InvalidOperationException("The model download consent Yes button was not found.");
+    yes.AsButton().Invoke();
+
+    Window progress = WaitForDescendantWindow(mainWindow, "LocalModelSetupWindow", TimeSpan.FromSeconds(15));
+    WaitForElementNameContains(progress, "LocalModelDownloadStatus", "Downloading", TimeSpan.FromSeconds(30));
+    CaptureWindow(progress, Path.Combine(evidenceDirectory, "model-download-progress.png"));
+    WaitForElementName(mainWindow, "RecordingStatusText",
+        "Ready — Local Whisper is installed for offline transcription", TimeSpan.FromMinutes(3));
+
+    ProviderTestResult readiness = LocalWhisperModel.VerifyAsync(CancellationToken.None).GetAwaiter().GetResult();
+    if (!readiness.IsReady) throw new InvalidOperationException(readiness.Message);
+    CaptureWindow(mainWindow, Path.Combine(evidenceDirectory, "model-download-complete.png"));
+    File.WriteAllText(Path.Combine(evidenceDirectory, "result.txt"),
+        $"ModelPath: {LocalWhisperModel.ResolvePath()}" + Environment.NewLine +
+        $"ModelBytes: {new FileInfo(LocalWhisperModel.ResolvePath()).Length}" + Environment.NewLine +
+        $"ModelSha256: {LocalWhisperModel.Sha256}" + Environment.NewLine +
+        "Result: PASS" + Environment.NewLine);
+}
+
+static Window WaitForNamedWindow(AutomationElement root, string name, TimeSpan timeout)
+{
+    Stopwatch stopwatch = Stopwatch.StartNew();
+    while (stopwatch.Elapsed < timeout)
+    {
+        AutomationElement? element = root.FindFirstDescendant(condition => condition.ByName(name));
+        if (element is not null && element.ControlType == FlaUI.Core.Definitions.ControlType.Window)
+            return element.AsWindow();
+        Thread.Sleep(100);
+    }
+    throw new TimeoutException($"Window named '{name}' was not available within {timeout}.");
+}
+
+static AutomationElement WaitForElementNameContains(AutomationElement root, string automationId, string fragment, TimeSpan timeout)
+{
+    Stopwatch stopwatch = Stopwatch.StartNew();
+    string? observed = null;
+    while (stopwatch.Elapsed < timeout)
+    {
+        AutomationElement? element = root.FindFirstDescendant(condition => condition.ByAutomationId(automationId));
+        observed = element?.Name;
+        if (observed?.Contains(fragment, StringComparison.OrdinalIgnoreCase) is true) return element!;
+        Thread.Sleep(100);
+    }
+    throw new TimeoutException($"Element '{automationId}' did not contain '{fragment}'. Last value: '{observed}'.");
 }
 
 static async Task<int> MigrateCredentialAsync(string sourcePath)

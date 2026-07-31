@@ -27,7 +27,8 @@ CloseApplications=yes
 RestartApplications=no
 
 [Files]
-Source: "..\artifacts\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\artifacts\publish\win-x64\*"; DestDir: "{app}"; Excludes: "Models\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\TalkToMe"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--show-window"
@@ -37,4 +38,4 @@ Name: "{userdesktop}\TalkToMe"; Filename: "{app}\{#MyAppExeName}"; Parameters: "
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "TalkToMe"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--minimized"; Description: "Start TalkToMe in the system tray"; Flags: nowait postinstall
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--minimized"; Description: "Start TalkToMe in the system tray"; Flags: nowait postinstall skipifsilent

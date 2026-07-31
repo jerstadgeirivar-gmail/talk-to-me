@@ -1,173 +1,94 @@
 <Window x:Class="TalkToMe.App.SettingsWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TalkToMe Settings"
-        Width="620"
-        Height="760"
-        MinWidth="540"
-        MinHeight="620"
-        Icon="/Assets/TalkToMe.ico"
-        WindowStartupLocation="CenterOwner"
-        AutomationProperties.AutomationId="SettingsWindow"
-        AutomationProperties.Name="TalkToMe settings">
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TalkToMe Settings" Width="700" Height="760" MinWidth="560" MinHeight="560"
+        Icon="/Assets/TalkToMe.ico" WindowStartupLocation="CenterOwner"
+        AutomationProperties.AutomationId="SettingsWindow" AutomationProperties.Name="TalkToMe settings">
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel Margin="28,22,28,12">
+            <TextBlock FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource NavyBrush}" Text="Settings"/>
+            <TextBlock Margin="0,3,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Choose how dictation is transcribed and configure application behavior."/>
+        </StackPanel>
+        <TabControl Grid.Row="1" Margin="24,0,24,12" AutomationProperties.AutomationId="SettingsTabs">
+            <TabItem Header="Transcription" AutomationProperties.AutomationId="TranscriptionTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="16">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Transcription provider"/>
+                        <ComboBox Margin="0,6,0,4" ItemsSource="{Binding Providers}" DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id" SelectedValue="{Binding SelectedProviderId}"
+                                  AutomationProperties.AutomationId="ProviderSelector" AutomationProperties.Name="Transcription provider"/>
+                        <TextBlock Foreground="{StaticResource MutedTextBrush}" Text="{Binding SelectedProvider.Description}" TextWrapping="Wrap"/>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="28,24,28,18">
-                <TextBlock FontFamily="Segoe UI Variable Display, Segoe UI"
-                           FontSize="24"
-                           FontWeight="SemiBold"
-                           Foreground="{StaticResource NavyBrush}"
-                           Text="Settings" />
-                <TextBlock Margin="0,3,0,18"
-                           Foreground="{StaticResource MutedTextBrush}"
-                           Text="Configure transcription and application behavior." />
+                        <Border Margin="0,14,0,0" Padding="16" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                            <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsLocalWhisper}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleText}" Text="Local Whisper"/>
+                                <TextBlock Margin="0,8,0,0" Text="Whisper small-q5_1 (multilingual) · CPU · Norwegian · works offline" TextWrapping="Wrap"/>
+                                <TextBlock Margin="0,5,0,0" Foreground="{StaticResource MutedTextBrush}" Text="Audio stays on this computer. The pinned model is verified with SHA-256 before use." TextWrapping="Wrap"/>
+                                <Button Margin="0,12,0,0" HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}" Content="Repair model" Click="RepairModel" AutomationProperties.AutomationId="RepairModelButton"/>
+                            </StackPanel>
+                        </Border>
 
-                <Border Padding="18,16"
-                        Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8">
-                    <StackPanel>
-                        <TextBlock Margin="0,0,0,14"
-                                   Style="{StaticResource SectionTitleText}"
-                                   Text="Azure transcription" />
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Endpoint" />
-                        <TextBox Text="{Binding AzureEndpoint, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.AutomationId="AzureEndpointTextBox"
-                                 AutomationProperties.Name="Azure endpoint" />
-                        <TextBlock Margin="0,12,0,6"
-                                   Style="{StaticResource FieldLabel}"
-                                   Text="Deployment name" />
-                        <TextBox Text="{Binding AzureDeployment, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.AutomationId="AzureDeploymentTextBox"
-                                 AutomationProperties.Name="Deployment name" />
-                        <TextBlock Margin="0,12,0,6"
-                                   Style="{StaticResource FieldLabel}"
-                                   Text="API version" />
-                        <TextBox Text="{Binding AzureApiVersion, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.AutomationId="AzureApiVersionTextBox"
-                                 AutomationProperties.Name="API version" />
-                        <DockPanel Margin="0,12,0,6">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="API key" />
-                            <Border HorizontalAlignment="Right"
-                                    Padding="8,3"
-                                    Background="{StaticResource AccentSoftBrush}"
-                                    CornerRadius="10">
-                                <TextBlock FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="#126246"
-                                           Text="{Binding KeyStatusText}"
-                                           AutomationProperties.AutomationId="ApiKeyStatusText"
-                                           AutomationProperties.Name="{Binding KeyStatusText}" />
-                            </Border>
-                        </DockPanel>
-                        <PasswordBox x:Name="ApiKeyPasswordBox"
-                                     AutomationProperties.AutomationId="ApiKeyPasswordBox"
-                                     AutomationProperties.Name="Replace API key" />
+                        <Border Margin="0,14,0,0" Padding="16" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                            <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsAzure}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionTitleText}" Text="Azure OpenAI"/>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Endpoint"/>
+                                <TextBox Text="{Binding AzureEndpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="AzureEndpointTextBox"/>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Deployment"/>
+                                <TextBox Text="{Binding AzureDeployment, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="AzureDeploymentTextBox"/>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="API version"/>
+                                <TextBox Text="{Binding AzureApiVersion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="AzureApiVersionTextBox"/>
+                                <DockPanel Margin="0,10,0,5"><TextBlock Style="{StaticResource FieldLabel}" Text="API key"/><TextBlock HorizontalAlignment="Right" Text="{Binding AzureSecretStatus}" AutomationProperties.AutomationId="ApiKeyStatusText" AutomationProperties.Name="{Binding AzureSecretStatus}"/></DockPanel>
+                                <PasswordBox x:Name="ApiKeyPasswordBox" AutomationProperties.AutomationId="ApiKeyPasswordBox" AutomationProperties.Name="Replace Azure API key"/>
+                                <Button Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource DangerButton}" Content="Remove Azure key" Click="RemoveAzureKey" AutomationProperties.AutomationId="RemoveApiKeyButton"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,14,0,0" Padding="16" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                            <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsLmStudio}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                            <StackPanel><TextBlock Style="{StaticResource SectionTitleText}" Text="LM Studio"/><TextBlock Margin="0,6" Foreground="{StaticResource DangerBrush}" Text="Current official LM Studio APIs do not expose speech-to-text. Test checks reachability and reports this limitation; audio is never sent to chat." TextWrapping="Wrap"/>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Base URL"/><TextBox Text="{Binding LmStudioBaseUrl}" AutomationProperties.AutomationId="LmStudioBaseUrlTextBox"/>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Model (reserved for a future documented audio API)"/><TextBox Text="{Binding LmStudioModel}" AutomationProperties.AutomationId="LmStudioModelTextBox"/>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Optional server token"/><PasswordBox x:Name="LmStudioTokenPasswordBox" AutomationProperties.AutomationId="LmStudioTokenPasswordBox"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,14,0,0" Padding="16" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                            <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsOllama}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                            <StackPanel><TextBlock Style="{StaticResource SectionTitleText}" Text="Ollama"/><TextBlock Margin="0,6" Foreground="{StaticResource DangerBrush}" Text="Current official Ollama APIs do not expose speech-to-text. Test checks reachability and reports this limitation; audio is never sent to chat." TextWrapping="Wrap"/>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Base URL"/><TextBox Text="{Binding OllamaBaseUrl}" AutomationProperties.AutomationId="OllamaBaseUrlTextBox"/>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Model (reserved for a future documented audio API)"/><TextBox Text="{Binding OllamaModel}" AutomationProperties.AutomationId="OllamaModelTextBox"/>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Optional server token"/><PasswordBox x:Name="OllamaTokenPasswordBox" AutomationProperties.AutomationId="OllamaTokenPasswordBox"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,14,0,0" Padding="12" Background="{StaticResource AccentSoftBrush}" CornerRadius="6">
+                            <StackPanel><TextBlock FontWeight="SemiBold" Text="Provider status"/><TextBlock Margin="0,3,0,0" Text="{Binding ProviderStatus}" TextWrapping="Wrap" AutomationProperties.AutomationId="ProviderStatusText" AutomationProperties.Name="{Binding ProviderStatus}"/><TextBlock Text="{Binding ProgressText}"/></StackPanel>
+                        </Border>
+                        <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                            <Button Style="{StaticResource PrimaryButton}" Content="Test provider" Click="TestProvider" AutomationProperties.AutomationId="TestProviderButton"/>
+                            <Button Margin="8,0,0,0" Content="Cancel operation" Click="CancelOperation" AutomationProperties.AutomationId="CancelProviderOperationButton">
+                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsBusy}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
-                </Border>
-
-                <Border Margin="0,12,0,0"
-                        Padding="18,16"
-                        Background="{StaticResource SurfaceBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8">
-                    <StackPanel>
-                        <TextBlock Margin="0,0,0,14"
-                                   Style="{StaticResource SectionTitleText}"
-                                   Text="Dictation preferences" />
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Technical vocabulary and context" />
-                        <TextBox Height="76"
-                                 VerticalContentAlignment="Top"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 Text="{Binding TechnicalVocabulary, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.AutomationId="VocabularyTextBox"
-                                 AutomationProperties.Name="Technical vocabulary" />
-                        <TextBlock Margin="0,14,0,6"
-                                   Style="{StaticResource FieldLabel}"
-                                   Text="Global hotkey" />
-                        <TextBox Text="{Binding Hotkey, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.AutomationId="HotkeyTextBox"
-                                 AutomationProperties.Name="Global hotkey" />
-                        <TextBlock Margin="0,5,0,0"
-                                   FontSize="11"
-                                   Foreground="{StaticResource MutedTextBrush}"
-                                   Text="Examples: Win+&lt;, Ctrl+Alt+F9, Win+Shift+K. Changes apply when saved."
-                                   TextWrapping="Wrap" />
-
-                        <CheckBox Margin="0,16,0,0"
-                                  Content="Enable “computer” voice command"
-                                  IsChecked="{Binding VoiceCommandsEnabled}"
-                                  AutomationProperties.AutomationId="VoiceCommandsEnabledCheckBox" />
-                        <TextBlock Margin="24,4,0,0"
-                                   FontSize="11"
-                                   Foreground="{StaticResource MutedTextBrush}"
-                                   Text="Listens locally for “computer”. Say it once to start and again to stop and insert."
-                                   TextWrapping="Wrap" />
-
-                        <CheckBox Margin="0,14,0,0"
-                                  Content="Keep audio after failed transcription"
-                                  IsChecked="{Binding RetainFailedAudio}"
-                                  AutomationProperties.AutomationId="RetainFailedAudioCheckBox" />
-                        <CheckBox Margin="0,10,0,0"
-                                  Content="Start with Windows"
-                                  IsChecked="{Binding StartWithWindows}"
-                                  AutomationProperties.AutomationId="StartWithWindowsCheckBox" />
-                        <CheckBox Margin="0,10,0,0"
-                                  Content="Copy to clipboard only"
-                                  IsChecked="{Binding ClipboardOnlyMode}"
-                                  AutomationProperties.AutomationId="ClipboardOnlyCheckBox" />
-                    </StackPanel>
-                </Border>
-
-                <Border Margin="0,12,0,0"
-                        Padding="12,9"
-                        Background="{StaticResource DangerSoftBrush}"
-                        BorderBrush="#ECD3D0"
-                        BorderThickness="1"
-                        CornerRadius="6">
-                    <TextBlock Foreground="{StaticResource DangerBrush}"
-                               Text="{Binding StatusText}"
-                               TextWrapping="Wrap"
-                               AutomationProperties.AutomationId="SettingsStatusText"
-                               AutomationProperties.Name="{Binding StatusText}" />
-                </Border>
-            </StackPanel>
-        </ScrollViewer>
-
-        <Border Grid.Row="1"
-                Padding="28,14"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,1,0,0">
-            <Grid>
-                <Button HorizontalAlignment="Left"
-                        MinWidth="132"
-                        Style="{StaticResource DangerButton}"
-                        Content="Remove API key"
-                        Click="RemoveApiKey"
-                        AutomationProperties.AutomationId="RemoveApiKeyButton" />
-                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                    <Button MinWidth="90"
-                            Style="{StaticResource SecondaryButton}"
-                            Content="Close"
-                            Click="CloseSettings"
-                            AutomationProperties.AutomationId="CloseSettingsButton" />
-                    <Button MinWidth="110"
-                            Margin="8,0,0,0"
-                            Style="{StaticResource PrimaryButton}"
-                            Content="Save settings"
-                            Click="SaveSettings"
-                            AutomationProperties.AutomationId="SaveSettingsButton" />
-                </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Dictation" AutomationProperties.AutomationId="DictationTab">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Technical vocabulary and context"/><TextBox Height="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="{Binding TechnicalVocabulary}" AutomationProperties.AutomationId="VocabularyTextBox"/>
+                    <TextBlock Margin="0,14,0,5" Style="{StaticResource FieldLabel}" Text="Global hotkey"/><TextBox Text="{Binding Hotkey}" AutomationProperties.AutomationId="HotkeyTextBox"/>
+                    <CheckBox Margin="0,16,0,0" Content="Enable “computer” voice command" IsChecked="{Binding VoiceCommandsEnabled}" AutomationProperties.AutomationId="VoiceCommandsEnabledCheckBox"/>
+                    <CheckBox Margin="0,12,0,0" Content="Keep audio after failed transcription" IsChecked="{Binding RetainFailedAudio}" AutomationProperties.AutomationId="RetainFailedAudioCheckBox"/>
+                    <CheckBox Margin="0,12,0,0" Content="Start with Windows" IsChecked="{Binding StartWithWindows}" AutomationProperties.AutomationId="StartWithWindowsCheckBox"/>
+                    <CheckBox Margin="0,12,0,0" Content="Copy to clipboard only" IsChecked="{Binding ClipboardOnlyMode}" AutomationProperties.AutomationId="ClipboardOnlyCheckBox"/>
+                </StackPanel></ScrollViewer>
+            </TabItem>
+        </TabControl>
+        <Border Grid.Row="2" Padding="28,12" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid><TextBlock VerticalAlignment="Center" MaxWidth="350" Foreground="{StaticResource DangerBrush}" Text="{Binding StatusText}" TextWrapping="Wrap" AutomationProperties.AutomationId="SettingsStatusText" AutomationProperties.Name="{Binding StatusText}"/>
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal"><Button MinWidth="90" Style="{StaticResource SecondaryButton}" Content="Close" Click="CloseSettings" AutomationProperties.AutomationId="CloseSettingsButton"/><Button MinWidth="110" Margin="8,0,0,0" Style="{StaticResource PrimaryButton}" Content="Save settings" Click="SaveSettings" AutomationProperties.AutomationId="SaveSettingsButton"/></StackPanel>
             </Grid>
         </Border>
     </Grid>

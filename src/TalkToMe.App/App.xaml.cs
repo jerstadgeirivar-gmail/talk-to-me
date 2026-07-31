@@ -51,17 +51,23 @@ public partial class App : System.Windows.Application, IDisposable
         }
 
         ApplicationSettings settings = await settingsStore.LoadAsync(CancellationToken.None);
-        string? storedApiKey = await secretStore.GetSecretAsync(CancellationToken.None);
         IAudioSource audioSource = options.DiagnosticAudioPath is null
             ? new WasapiMicrophoneAudioSource()
             : new FileBackedAudioSource(options.DiagnosticAudioPath, options.DiagnosticSpeed);
-        AzureTranscriptionOptions? azureOptions =
-            AzureTranscriptionOptions.FromConfiguration(settings, storedApiKey);
-        ITranscriptionProvider? transcriptionProvider = options.DiagnosticTranscript is not null
+        TranscriptionProviderRegistry providerRegistry = new(settingsStore, secretStore);
+        bool hasAzureSecret = await secretStore.HasSecretAsync(TranscriptionProviderIds.AzureOpenAi, CancellationToken.None);
+        string selectedProviderId = providerRegistry.SelectProviderId(settings, hasAzureSecret);
+        if (settings.TranscriptionProviderId is null)
+        {
+            settings = settings with { TranscriptionProviderId = selectedProviderId };
+            await settingsStore.SaveAsync(settings, CancellationToken.None);
+        }
+        TranscriptionProviderCoordinator? providerCoordinator = options.DiagnosticTranscript is null
+            ? new(providerRegistry, settingsStore, selectedProviderId)
+            : null;
+        ITranscriptionProvider transcriptionProvider = options.DiagnosticTranscript is not null
             ? new DiagnosticTranscriptionProvider(options.DiagnosticTranscript)
-            : azureOptions is null
-                ? null
-                : new AzureTranscriptionProvider(azureOptions);
+            : providerCoordinator!;
         WindowsWindowTargetService windowTargetService = new(Environment.ProcessId);
         WindowsGlobalHotkeyService hotkeyService = new(settings.Hotkey);
         RecoveredRecording? recoveredRecording =
@@ -84,9 +90,14 @@ public partial class App : System.Windows.Application, IDisposable
             allowRecordOnly: options.DiagnosticAudioPath is not null && options.DiagnosticTranscript is null,
             recoveredRecording);
         _voiceCommandService = new LocalVoiceCommandService();
-        MainWindow window = new(viewModel, hotkeyService, settingsStore, secretStore, _voiceCommandService);
+        MainWindow window = new(viewModel, hotkeyService, settingsStore, secretStore, providerRegistry, providerCoordinator, _voiceCommandService);
         MainWindow = window;
         window.Show();
+        if (selectedProviderId == TranscriptionProviderIds.LocalWhisper &&
+            options.DiagnosticTranscript is null)
+        {
+            await EnsureLocalModelAsync(window, viewModel, providerCoordinator!);
+        }
         _singleInstance.ActivationRequested += () => Dispatcher.BeginInvoke(() => ShowMainWindow(window));
         InitializeTray(viewModel, window);
         _voiceCommandService.CommandDetected += (_, eventArgs) =>
@@ -161,6 +172,51 @@ public partial class App : System.Windows.Application, IDisposable
         return Path.Combine(
             TalkToMeDataPaths.PendingAudioDirectory,
             $"recording-{DateTime.UtcNow:yyyyMMdd-HHmmss}.wav");
+    }
+
+    private static async Task EnsureLocalModelAsync(
+        MainWindow owner,
+        MainWindowViewModel viewModel,
+        TranscriptionProviderCoordinator coordinator)
+    {
+        ProviderTestResult readiness = await LocalWhisperModel.VerifyAsync(CancellationToken.None);
+        if (readiness.IsReady)
+        {
+            return;
+        }
+
+        string? customModelPath = Environment.GetEnvironmentVariable("TALKTOME_WHISPER_MODEL_PATH");
+        if (!string.IsNullOrWhiteSpace(customModelPath))
+        {
+            viewModel.ShowProviderStatus(readiness.Message);
+            return;
+        }
+
+        MessageBoxResult choice = System.Windows.MessageBox.Show(
+            owner,
+            "TalkToMe needs the default multilingual Local Whisper model for offline transcription." +
+            Environment.NewLine + Environment.NewLine +
+            "Download and set it up now? The download is about 181 MB. Audio will stay on this computer during transcription.",
+            "Set up offline transcription",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+        if (choice != MessageBoxResult.Yes)
+        {
+            viewModel.ShowProviderStatus("Local Whisper is not ready. Open Settings to download the model.");
+            return;
+        }
+
+        using LocalModelSetupWindow setupWindow = new() { Owner = owner };
+        bool installed = setupWindow.ShowDialog() is true;
+        if (installed)
+        {
+            await coordinator.ApplySelectionAsync(TranscriptionProviderIds.LocalWhisper, CancellationToken.None);
+            viewModel.ShowProviderStatus("Ready — Local Whisper is installed for offline transcription");
+        }
+        else
+        {
+            viewModel.ShowProviderStatus("Local Whisper setup was not completed. Open Settings to retry.");
+        }
     }
 
     private static bool IsInstalledApplication()

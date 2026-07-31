@@ -11,7 +11,9 @@ public partial class MainWindow : Window
     private readonly MainWindowViewModel _viewModel;
     private readonly IGlobalHotkeyService _hotkeyService;
     private readonly IApplicationSettingsStore _settingsStore;
-    private readonly ISecretStore _secretStore;
+    private readonly INamedSecretStore _secretStore;
+    private readonly ITranscriptionProviderFactory _providerFactory;
+    private readonly TranscriptionProviderCoordinator? _providerCoordinator;
     private readonly LocalVoiceCommandService _voiceCommandService;
     private HwndSource? _windowSource;
     private bool _closeRequested;
@@ -21,14 +23,18 @@ public partial class MainWindow : Window
         MainWindowViewModel viewModel,
         IGlobalHotkeyService hotkeyService,
         IApplicationSettingsStore settingsStore,
-        ISecretStore secretStore,
+        INamedSecretStore secretStore,
+        ITranscriptionProviderFactory providerFactory,
+        TranscriptionProviderCoordinator? providerCoordinator,
         LocalVoiceCommandService voiceCommandService)
     {
-        
+
         _viewModel = viewModel;
         _hotkeyService = hotkeyService;
         _settingsStore = settingsStore;
         _secretStore = secretStore;
+        _providerFactory = providerFactory;
+        _providerCoordinator = providerCoordinator;
         _voiceCommandService = voiceCommandService;
         InitializeComponent();
         DataContext = viewModel;
@@ -37,7 +43,11 @@ public partial class MainWindow : Window
     public void ShowSettingsWindow()
     {
         SettingsWindow settingsWindow = new(
-            new SettingsWindowViewModel(_settingsStore, _secretStore),
+            new SettingsWindowViewModel(
+                _settingsStore,
+                _secretStore,
+                _providerFactory,
+                (providerId, cancellationToken) => _providerCoordinator?.ApplySelectionAsync(providerId, cancellationToken) ?? Task.CompletedTask),
             ApplyHotkey,
             ApplyVoiceCommands)
         {

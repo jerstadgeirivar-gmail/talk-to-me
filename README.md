@@ -1,6 +1,6 @@
 # TalkToMe
 
-TalkToMe is a Windows 11 WPF utility for recording Norwegian dictation, transcribing through an Azure OpenAI deployment, and inserting the completed text into the originally focused application.
+TalkToMe is a Windows 11 WPF utility for recording Norwegian dictation, transcribing locally by default, and inserting the completed text into the originally focused application. Azure OpenAI remains optional; LM Studio and Ollama profiles report their current speech-to-text limitation honestly.
 
 In addition to the global hotkey, TalkToMe can listen locally for the English
 keyword **computer**. The first occurrence plays a short chime and starts
@@ -15,7 +15,7 @@ is sent to the configured Azure deployment.
 
 - Windows 11
 - .NET 10 SDK for development
-- An Azure OpenAI transcription endpoint, deployment, and API key for live transcription
+- About 500 MB free disk space, 1.5 GB available RAM, and internet access for the one-time default model setup
 
 ## Build
 
@@ -53,7 +53,9 @@ The default global toggle is `Ctrl+Alt+F9`. The normal flow captures the foregro
 
 ## Configuration
 
-Open **Innstillinger** to save the endpoint and deployment. API keys are stored as current-user DPAPI ciphertext under `%LOCALAPPDATA%\TalkToMe`; they are never stored in `settings.json` or displayed after saving.
+Open **Settings → Transcription** to select and test a provider. Fresh installations select Local Whisper. Existing installations with complete Azure settings and no saved provider migrate once to Azure. Provider credentials are namespaced current-user DPAPI ciphertext under `%LOCALAPPDATA%\TalkToMe\Secrets`; they are never stored in `settings.json` or displayed after saving. See [configuration](docs/configuration.md).
+
+The small installer includes Whisper.net 1.9.1 and its CPU whisper.cpp runtime, but not the large model. On the first Local Whisper start, TalkToMe detects that the model is absent and asks permission to download and set up the pinned multilingual `small-q5_1` model (190,085,487 bytes; SHA-256 `ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb`). The download has progress and cancellation and is installed atomically only after verification. No Python, CUDA, account, or separate server is needed. The model is kept under `%LOCALAPPDATA%\TalkToMe\Models`; **Repair model** repeats the same verified setup flow.
 
 Development overrides:
 
@@ -62,6 +64,7 @@ TALKTOME_AZURE_ENDPOINT
 TALKTOME_AZURE_API_KEY
 TALKTOME_AZURE_DEPLOYMENT
 TALKTOME_AZURE_API_VERSION
+TALKTOME_WHISPER_MODEL_PATH
 ```
 
 ## Unattended Validation
@@ -91,4 +94,5 @@ See [docs/manual-test-plan.md](docs/manual-test-plan.md) and [docs/troubleshooti
 - A normal-integrity process cannot inject input into an elevated target because of Windows UIPI.
 - Microphone selection and a separately owned Windows 11 Notepad smoke test remain incomplete.
 - Live Azure validation requires endpoint and deployment configuration in addition to the protected key.
+- LM Studio 0.4.x and Ollama 0.31.1 official APIs were verified on 2026-07-31; neither documents an audio-transcription endpoint. Their profiles never send audio to chat/text endpoints.
 - The binaries are unsigned and may trigger Microsoft Defender SmartScreen warnings.

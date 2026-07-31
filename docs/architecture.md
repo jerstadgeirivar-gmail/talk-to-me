@@ -3,7 +3,7 @@
 ## Projects
 
 - `TalkToMe.Core`: platform-independent contracts, state transitions, recording/transcription/insertion models, and settings models.
-- `TalkToMe.Infrastructure`: NAudio sources and WAV writer, Azure REST provider, Win32 target/hotkey/input adapters, clipboard insertion, DPAPI, and JSON persistence.
+- `TalkToMe.Infrastructure`: NAudio sources and WAV writer; provider registry/coordinator; Local Whisper, Azure, LM Studio, and Ollama adapters; Win32 adapters; namespaced DPAPI; and JSON persistence.
 - `TalkToMe.App`: WPF composition, windows, view models, hotkey message routing, single-instance lifecycle, and tray integration.
 - `TalkToMe.UiDriver`: FlaUI UIA3 functional driver and redacted evidence capture.
 - `TalkToMe.TestTarget`: isolated standard WPF Edit target for unattended insertion validation.
@@ -15,13 +15,22 @@ flowchart LR
     Trigger[Global hotkey or UI] --> Target[Capture foreground target]
     Target --> Source[IAudioSource]
     Source --> Recorder[WAV recording pipeline]
-    Recorder --> Provider[ITranscriptionProvider]
-    Provider --> Review[Completed transcript]
+    Recorder --> Coordinator[Provider coordinator]
+    Coordinator --> Registry[ITranscriptionProviderFactory registry]
+    Registry --> Local[Local Whisper adapter]
+    Registry --> Azure[Azure OpenAI adapter]
+    Registry --> LM[LM Studio capability adapter]
+    Registry --> Ollama[Ollama capability adapter]
+    Local --> Review
+    Azure --> Review
+    LM --> Review
+    Ollama --> Review
+    Review[Completed transcript]
     Review --> Insert[ITextInsertionService]
     Insert --> Original[Original target window]
 ```
 
-The file-backed diagnostic source emits the same 16 kHz, 16-bit, mono PCM frames as the microphone boundary. Diagnostic transcription is available only through an explicit command-line flag and still requires a finalized recording.
+The file-backed diagnostic source emits the same 16 kHz, 16-bit, mono PCM frames as the microphone boundary. `TranscriptionProviderCoordinator` serializes replacement and transcription, caches the selected engine, and reloads it only after settings save and outside active transcription. There is no fallback chain.
 
 ## State and Failure Policy
 

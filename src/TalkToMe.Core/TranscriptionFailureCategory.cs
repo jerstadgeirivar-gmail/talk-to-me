@@ -14,6 +14,11 @@ public enum TranscriptionFailureCategory
     Network,
     Timeout,
     MalformedResponse,
+    CapabilityUnavailable,
+    ModelMissing,
+    ModelCorrupt,
+    RuntimeUnavailable,
+    InsufficientMemory,
     Server,
     Unknown,
 }

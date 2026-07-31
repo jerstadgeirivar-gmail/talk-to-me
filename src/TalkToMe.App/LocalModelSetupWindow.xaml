@@ -1,0 +1,28 @@
+<Window x:Class="TalkToMe.App.LocalModelSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Set up offline transcription"
+        Width="520" Height="250" MinWidth="440" MinHeight="230"
+        ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
+        Icon="/Assets/TalkToMe.ico"
+        AutomationProperties.AutomationId="LocalModelSetupWindow"
+        AutomationProperties.Name="Set up offline transcription">
+    <Grid Margin="26,22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock FontSize="21" FontWeight="SemiBold" Foreground="{StaticResource NavyBrush}" Text="Downloading Local Whisper" />
+        <TextBlock Grid.Row="1" Margin="0,8,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
+                   Text="TalkToMe is downloading the pinned multilingual small-q5_1 model (about 181 MB). The file is verified before it is installed." />
+        <ProgressBar Grid.Row="2" Margin="0,18,0,0" Height="12" Minimum="0" Maximum="100" Value="{Binding ProgressValue, Mode=OneWay}"
+                     AutomationProperties.AutomationId="LocalModelDownloadProgress" />
+        <TextBlock Grid.Row="3" Margin="0,10,0,0" Text="{Binding StatusText}" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="LocalModelDownloadStatus" AutomationProperties.Name="{Binding StatusText}" />
+        <Button Grid.Row="4" HorizontalAlignment="Right" MinWidth="100" Style="{StaticResource SecondaryButton}"
+                Content="Cancel" Click="CancelDownload" AutomationProperties.AutomationId="CancelModelDownloadButton" />
+    </Grid>
+</Window>
