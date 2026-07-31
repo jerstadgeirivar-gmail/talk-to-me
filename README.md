@@ -84,3 +84,7 @@ See the full [troubleshooting guide](docs/troubleshooting.md) and [configuration
 ## Developers
 
 Build instructions, validation commands, architecture notes, and release details are in the [development guide](docs/development.md).
+
+## License
+
+TalkToMe is available under the [MIT License](LICENSE).
