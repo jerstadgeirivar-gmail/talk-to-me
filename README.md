@@ -1,6 +1,6 @@
 # TalkToMe
 
-TalkToMe is a Windows 11 WPF utility for recording Norwegian dictation, transcribing locally by default, and inserting the completed text into the originally focused application. Azure OpenAI remains optional; LM Studio and Ollama profiles report their current speech-to-text limitation honestly.
+TalkToMe (Snakk til meg! - Harry Hole), is a Windows 11 WPF utility for recording Norwegian dictation, transcribing locally by default, and inserting the completed text into the originally focused application. Azure OpenAI remains optional; LM Studio and Ollama profiles report their current speech-to-text limitation honestly.
 
 In addition to the global hotkey, TalkToMe can listen locally for the English
 keyword **computer**. The first occurrence plays a short chime and starts
