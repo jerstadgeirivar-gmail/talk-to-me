@@ -147,11 +147,11 @@ public partial class App : System.Windows.Application, IDisposable
         {
             await viewModel.StopFromVoiceCommandAsync(
                 eventArgs.TrailingAudio,
-                VoiceCommandFeedback.Play);
+                VoiceCommandFeedback.PlayStop);
             return;
         }
 
-        VoiceCommandFeedback.Play();
+        VoiceCommandFeedback.PlayStart();
         await Task.Delay(100);
         await viewModel.StartFromVoiceCommandAsync();
     }

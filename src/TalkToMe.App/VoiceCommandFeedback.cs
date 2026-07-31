@@ -6,13 +6,22 @@ namespace TalkToMe.App;
 internal static class VoiceCommandFeedback
 {
     private const int SampleRate = 22_050;
-    private static readonly byte[] ChimeWave = CreateChimeWave();
+    private static readonly byte[] StartChimeWave = CreateChimeWave(
+        firstFrequency: 880,
+        secondFrequency: 1_175);
+    private static readonly byte[] StopChimeWave = CreateChimeWave(
+        firstFrequency: 1_175,
+        secondFrequency: 880);
 
-    public static void Play()
+    public static void PlayStart() => Play(StartChimeWave);
+
+    public static void PlayStop() => Play(StopChimeWave);
+
+    private static void Play(byte[] chimeWave)
     {
         try
         {
-            using MemoryStream stream = new(ChimeWave, writable: false);
+            using MemoryStream stream = new(chimeWave, writable: false);
             using SoundPlayer player = new(stream);
             player.PlaySync();
         }
@@ -22,12 +31,14 @@ internal static class VoiceCommandFeedback
         }
     }
 
-    private static byte[] CreateChimeWave()
+    private static byte[] CreateChimeWave(
+        double firstFrequency,
+        double secondFrequency)
     {
         short[] samples =
         [
-            .. CreateTone(frequency: 880, durationMilliseconds: 65),
-            .. CreateTone(frequency: 1_175, durationMilliseconds: 95),
+            .. CreateTone(firstFrequency, durationMilliseconds: 65),
+            .. CreateTone(secondFrequency, durationMilliseconds: 95),
         ];
         using MemoryStream stream = new();
         using (BinaryWriter writer = new(stream, System.Text.Encoding.ASCII, leaveOpen: true))

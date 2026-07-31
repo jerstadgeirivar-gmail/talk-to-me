@@ -121,8 +121,8 @@ public partial class MainWindow : Window
         if (message == _hotkeyService.WindowMessage && wordParameter == _hotkeyService.HotkeyId)
         {
             _ = _viewModel.HandleHotkeyAsync(
-                VoiceCommandFeedback.Play,
-                VoiceCommandFeedback.Play);
+                VoiceCommandFeedback.PlayStart,
+                VoiceCommandFeedback.PlayStop);
             handled = true;
         }
 
