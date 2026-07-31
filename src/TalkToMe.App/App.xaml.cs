@@ -62,12 +62,13 @@ public partial class App : System.Windows.Application, IDisposable
             settings = settings with { TranscriptionProviderId = selectedProviderId };
             await settingsStore.SaveAsync(settings, CancellationToken.None);
         }
-        TranscriptionProviderCoordinator? providerCoordinator = options.DiagnosticTranscript is null
+        bool useConfiguredProvider = options.DiagnosticAudioPath is null || options.UseConfiguredProvider;
+        TranscriptionProviderCoordinator? providerCoordinator = options.DiagnosticTranscript is null && useConfiguredProvider
             ? new(providerRegistry, settingsStore, selectedProviderId)
             : null;
-        ITranscriptionProvider transcriptionProvider = options.DiagnosticTranscript is not null
+        ITranscriptionProvider? transcriptionProvider = options.DiagnosticTranscript is not null
             ? new DiagnosticTranscriptionProvider(options.DiagnosticTranscript)
-            : providerCoordinator!;
+            : providerCoordinator;
         WindowsWindowTargetService windowTargetService = new(Environment.ProcessId);
         WindowsGlobalHotkeyService hotkeyService = new(settings.Hotkey);
         RecoveredRecording? recoveredRecording =
@@ -87,14 +88,15 @@ public partial class App : System.Windows.Application, IDisposable
                 new WindowsKeyboardInputAdapter()),
             hotkeyService,
             outputPath,
-            allowRecordOnly: options.DiagnosticAudioPath is not null && options.DiagnosticTranscript is null,
-            recoveredRecording);
+            allowRecordOnly: options.DiagnosticAudioPath is not null && transcriptionProvider is null,
+            retainFailedAudio: settings.RetainFailedAudio,
+            recoveredRecording: recoveredRecording);
         _voiceCommandService = new LocalVoiceCommandService();
         MainWindow window = new(viewModel, hotkeyService, settingsStore, secretStore, providerRegistry, providerCoordinator, _voiceCommandService);
         MainWindow = window;
         window.Show();
         if (selectedProviderId == TranscriptionProviderIds.LocalWhisper &&
-            options.DiagnosticTranscript is null)
+            providerCoordinator is not null)
         {
             await EnsureLocalModelAsync(window, viewModel, providerCoordinator!);
         }

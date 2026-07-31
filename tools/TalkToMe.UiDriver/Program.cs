@@ -34,6 +34,7 @@ const string recordOnlyStatus = "Audio recording ready";
 const string insertionCompleteStatus = "Text inserted";
 const string transcriptAutomationId = "TranscriptTextBox";
 const string insertButtonAutomationId = "InsertButton";
+const string privacyTranscript = "Synthetic privacy regression transcript.";
 
 bool settingsScenario = args.Length == 3 && args[1] == "--settings";
 bool capabilitiesScenario = args.Length == 3 && args[1] == "--capabilities";
@@ -41,7 +42,9 @@ bool firstRunModelScenario = args.Length == 3 && args[1] == "--first-run-model";
 bool liveProviderScenario = args.Length == 3 && args[1] == "--live-provider";
 bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
 bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
-if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveLocalScenario && args.Length is not 3 and not 5)
+bool privacyFailureScenario = args.Length == 5 && args[3] == "--privacy-failure";
+bool privacyTranscriptionFailureScenario = args.Length == 4 && args[3] == "--privacy-transcription-failure";
+if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveLocalScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 5)
 {
     Console.Error.WriteLine(
         "Usage: TalkToMe.UiDriver <application-path> <audio-fixture-path> <evidence-directory> [diagnostic-transcript|--live target-application-path]");
@@ -51,14 +54,20 @@ if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liv
 string applicationPath = Path.GetFullPath(args[0]);
 string? audioFixturePath = (settingsScenario || capabilitiesScenario || firstRunModelScenario || liveProviderScenario) ? null : Path.GetFullPath(args[1]);
 string evidenceDirectory = Path.GetFullPath(args[2]);
-string? expectedTranscript = !settingsScenario && !liveAzureScenario && args.Length == 5 ? args[3] : null;
+string? expectedTranscript = privacyFailureScenario
+    ? privacyTranscript
+    : !settingsScenario && !liveAzureScenario && args.Length == 5 ? args[3] : null;
 string? targetApplicationPath = args.Length == 5 ? Path.GetFullPath(args[4]) : null;
-bool insertionScenario = expectedTranscript is not null || liveAzureScenario;
+bool insertionScenario = expectedTranscript is not null || liveAzureScenario || privacyFailureScenario;
 bool transcriptionScenario = insertionScenario || liveLocalScenario;
 Directory.CreateDirectory(evidenceDirectory);
 if (settingsScenario)
 {
     PrepareLegacyNullSettings(evidenceDirectory);
+}
+else if (privacyTranscriptionFailureScenario)
+{
+    PreparePrivacyTranscriptionFailureSettings(evidenceDirectory);
 }
 string recordingPath = Path.Combine(evidenceDirectory, "simulated-recording.wav");
 
@@ -99,6 +108,10 @@ try
         startInfo.ArgumentList.Add("--diagnostic-speed");
         startInfo.ArgumentList.Add("2");
     }
+    if (liveAzureScenario || liveLocalScenario || privacyTranscriptionFailureScenario)
+    {
+        startInfo.ArgumentList.Add("--diagnostic-live-provider");
+    }
     if (expectedTranscript is not null)
     {
         startInfo.ArgumentList.Add("--diagnostic-transcript");
@@ -111,6 +124,16 @@ try
     process = Process.GetProcessById(processId);
     window = WaitForWindow(application, automation, windowAutomationId, TimeSpan.FromSeconds(15));
     WriteAutomationTree(window, Path.Combine(evidenceDirectory, "uia-tree-before.txt"));
+    if (privacyFailureScenario)
+    {
+        AssertPrivacyDefaults(window);
+    }
+    if (privacyTranscriptionFailureScenario)
+    {
+        RunPrivacyTranscriptionFailureScenario(window, recordingPath, evidenceDirectory);
+        Console.WriteLine($"PASS pid={processId} privacy-transcription-failure=deleted");
+        return 0;
+    }
     if (firstRunModelScenario)
     {
         RunFirstRunModelScenario(application, automation, window, evidenceDirectory);
@@ -173,6 +196,12 @@ try
         ?? throw new InvalidOperationException($"Button '{stopButtonAutomationId}' was not found.");
     AssertEnabledState(button, expectedEnabled: false, "start button while recording");
     AssertEnabledState(stopButton, expectedEnabled: true, "stop button while recording");
+    if (privacyFailureScenario)
+    {
+        TerminateOwnedProcess(notepadProcess);
+        notepadWindow = null;
+        notepadEditor = null;
+    }
     Stopwatch transcriptionStopwatch = Stopwatch.StartNew();
     if (!insertionScenario)
     {
@@ -183,7 +212,9 @@ try
         Keyboard.TypeSimultaneously([VirtualKeyShort.LWIN, (VirtualKeyShort)0xE2]);
     }
 
-    string expectedStatus = insertionScenario ? insertionCompleteStatus
+    string expectedStatus = privacyFailureScenario
+        ? "The target window could not be activated. The previous clipboard contents were restored."
+        : insertionScenario ? insertionCompleteStatus
         : liveLocalScenario ? "Transcript ready — copy it or use the shortcut from another app to insert"
         : recordOnlyStatus;
     AutomationElement status = WaitForElementName(
@@ -193,13 +224,17 @@ try
         transcriptionScenario ? TimeSpan.FromMinutes(3) : TimeSpan.FromSeconds(5));
     transcriptionStopwatch.Stop();
 
-    AssertEnabledState(button, expectedEnabled: !liveLocalScenario, "start button after recording");
+    AssertEnabledState(button, expectedEnabled: !liveLocalScenario && !privacyFailureScenario, "start button after recording");
     AssertEnabledState(stopButton, expectedEnabled: false, "stop button after recording");
     long recordingBytes = 0;
-    if (!insertionScenario)
+    if (!insertionScenario && !liveLocalScenario)
     {
         ValidateWaveFile(recordingPath);
         recordingBytes = new FileInfo(recordingPath).Length;
+    }
+    else if (liveLocalScenario && File.Exists(recordingPath))
+    {
+        throw new InvalidOperationException("Successful Local Whisper transcription did not delete the temporary recording.");
     }
 
     bool exactInsertionMatch = false;
@@ -235,11 +270,23 @@ try
             condition => condition.ByAutomationId(insertButtonAutomationId));
         if (insertButton is not null)
         {
-            AssertEnabledState(insertButton, expectedEnabled: false, "insert button after automatic insertion");
+            AssertEnabledState(insertButton, expectedEnabled: privacyFailureScenario, "insert button after automatic insertion");
         }
 
         if (!insertionScenario)
         {
+            goto TranscriptionValidated;
+        }
+        if (privacyFailureScenario)
+        {
+            AutomationElement retryInsert = window.FindFirstDescendant(
+                condition => condition.ByAutomationId(insertButtonAutomationId))
+                ?? throw new InvalidOperationException($"Element '{insertButtonAutomationId}' was not found.");
+            AssertEnabledState(retryInsert, expectedEnabled: true, "insert button after failed insertion");
+            if (File.Exists(recordingPath))
+            {
+                throw new InvalidOperationException("Insertion failure retained audio even though retention was disabled.");
+            }
             goto TranscriptionValidated;
         }
 
@@ -273,6 +320,7 @@ try
         $"RecordingBytes: {recordingBytes}{Environment.NewLine}" +
         $"LiveAzure: {liveAzureScenario}{Environment.NewLine}" +
         $"LiveLocal: {liveLocalScenario}{Environment.NewLine}" +
+        $"PrivacyFailure: {privacyFailureScenario}{Environment.NewLine}" +
         $"TranscriptionMilliseconds: {transcriptionStopwatch.ElapsedMilliseconds}{Environment.NewLine}" +
         $"TranscriptCharacters: {transcriptCharacters}{Environment.NewLine}" +
         $"SemanticAnchorCount: {semanticAnchorCount}{Environment.NewLine}" +
@@ -362,6 +410,25 @@ static int CountSemanticAnchors(string transcript)
     return anchors.Count(anchor => transcript.Contains(anchor, StringComparison.OrdinalIgnoreCase));
 }
 
+static void AssertPrivacyDefaults(AutomationElement mainWindow)
+{
+    AutomationElement settingsButton = FindByAutomationId(mainWindow, "SettingsButton");
+    Task invokeTask = Task.Run(() => settingsButton.AsButton().Invoke());
+    Window settingsWindow = WaitForDescendantWindow(mainWindow, "SettingsWindow", TimeSpan.FromSeconds(10));
+    FindByAutomationId(settingsWindow, "DictationTab").Patterns.SelectionItem.Pattern.Select();
+    CheckBox retainAudio = FindByAutomationId(settingsWindow, "RetainFailedAudioCheckBox").AsCheckBox();
+    if (retainAudio.IsChecked == true)
+    {
+        throw new InvalidOperationException("Failed-audio retention was enabled in fresh settings.");
+    }
+
+    settingsWindow.Close();
+    if (!invokeTask.Wait(TimeSpan.FromSeconds(5)))
+    {
+        throw new TimeoutException("Settings dialog invocation did not complete after the privacy check.");
+    }
+}
+
 static void PrepareLegacyNullSettings(string evidenceDirectory)
 {
     string dataDirectory = Path.Combine(evidenceDirectory, "data");
@@ -389,6 +456,54 @@ static void PrepareLegacyNullSettings(string evidenceDirectory)
           "DiagnosticLoggingLevel": "Information"
         }
         """);
+}
+
+static void PreparePrivacyTranscriptionFailureSettings(string evidenceDirectory)
+{
+    string dataDirectory = Path.Combine(evidenceDirectory, "data");
+    Directory.CreateDirectory(dataDirectory);
+    File.WriteAllText(
+        Path.Combine(dataDirectory, "settings.json"),
+        """
+        {
+          "TranscriptionProviderId": "lm-studio",
+          "LocalWhisperModel": "small-q5_1",
+          "LmStudioBaseUrl": "http://localhost:1234",
+          "OllamaBaseUrl": "http://localhost:11434",
+          "RetainFailedAudio": false,
+          "Hotkey": "Win+<",
+          "DiagnosticLoggingLevel": "Information"
+        }
+        """);
+}
+
+static void RunPrivacyTranscriptionFailureScenario(
+    AutomationElement mainWindow,
+    string recordingPath,
+    string evidenceDirectory)
+{
+    AutomationElement start = FindByAutomationId(mainWindow, buttonAutomationId);
+    AutomationElement stop = FindByAutomationId(mainWindow, stopButtonAutomationId);
+    start.AsButton().Invoke();
+    WaitForElementName(mainWindow, statusAutomationId, recordingStatus, TimeSpan.FromSeconds(5));
+    WaitForDuration(mainWindow, durationAutomationId, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10));
+    stop.AsButton().Invoke();
+
+    const string expectedFailure = "LM Studio does not expose a documented speech-to-text endpoint. Select Local Whisper or Azure OpenAI, or configure this profile only when a future documented audio API is available. The recording was deleted.";
+    WaitForElementName(mainWindow, statusAutomationId, expectedFailure, TimeSpan.FromSeconds(10));
+    if (File.Exists(recordingPath))
+    {
+        throw new InvalidOperationException("Failed transcription retained audio even though retention was disabled.");
+    }
+
+    AssertEnabledState(start, expectedEnabled: true, "start button after deleted transcription failure");
+    AssertEnabledState(stop, expectedEnabled: false, "stop button after deleted transcription failure");
+    File.WriteAllText(
+        Path.Combine(evidenceDirectory, "result.txt"),
+        "FailedAudioRetentionDefault: False" + Environment.NewLine +
+        "FailedRecordingDeleted: True" + Environment.NewLine +
+        "ReadyForNewRecording: True" + Environment.NewLine +
+        "Result: PASS" + Environment.NewLine);
 }
 
 static void RunSettingsScenario(

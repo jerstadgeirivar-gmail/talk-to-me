@@ -33,6 +33,7 @@ public sealed class ApplicationStateController : IApplicationStateController
                 DictationState.RecoverableFailure),
             [DictationState.Inserting] = Set(
                 DictationState.Completed,
+                DictationState.ReadyToInsert,
                 DictationState.RecoverableFailure),
             [DictationState.Completed] = Set(DictationState.Idle),
             [DictationState.Cancelling] = Set(DictationState.Cancelled, DictationState.RecoverableFailure),

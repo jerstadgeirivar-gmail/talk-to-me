@@ -4,7 +4,26 @@ namespace TalkToMe.Infrastructure;
 
 public sealed class WpfClipboardAdapter : IClipboardAdapter
 {
-    public object? CaptureData() => Clipboard.GetDataObject();
+    public object? CaptureData()
+    {
+        IDataObject? current = Clipboard.GetDataObject();
+        if (current is null)
+        {
+            return null;
+        }
+
+        DataObject snapshot = new();
+        foreach (string format in current.GetFormats(autoConvert: false))
+        {
+            object? value = current.GetData(format, autoConvert: false);
+            if (value is not null)
+            {
+                snapshot.SetData(format, value, autoConvert: false);
+            }
+        }
+
+        return snapshot;
+    }
 
     public void SetText(string text) => Clipboard.SetText(text, TextDataFormat.UnicodeText);
 

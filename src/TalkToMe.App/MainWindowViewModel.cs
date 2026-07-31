@@ -19,6 +19,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private readonly ITextInsertionService _textInsertionService;
     private readonly string _outputPath;
     private readonly bool _allowRecordOnly;
+    private bool _retainFailedAudio;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly AsyncDelegateCommand _startRecordingCommand;
     private readonly AsyncDelegateCommand _stopRecordingCommand;
@@ -51,6 +52,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         IGlobalHotkeyService globalHotkeyService,
         string outputPath,
         bool allowRecordOnly,
+        bool retainFailedAudio = false,
         RecoveredRecording? recoveredRecording = null)
     {
         _audioSource = audioSource;
@@ -61,6 +63,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         _textInsertionService = textInsertionService;
         _outputPath = outputPath;
         _allowRecordOnly = allowRecordOnly;
+        _retainFailedAudio = retainFailedAudio;
         _startRecordingCommand = new AsyncDelegateCommand(StartRecordingFromWindowAsync, CanStartRecording);
         _stopRecordingCommand = new AsyncDelegateCommand(StopRecordingAsync, () => IsRecording);
         _insertCommand = new AsyncDelegateCommand(InsertTranscriptAsync, CanInsertTranscript);
@@ -178,6 +181,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     public void SetUpdateStatus(string status) => UpdateStatusText = status;
 
     public void ShowProviderStatus(string status) => StatusText = status;
+
+    public void ConfigureFailedAudioRetention(bool retainFailedAudio) =>
+        _retainFailedAudio = retainFailedAudio;
 
     public void ToggleRecording(bool insertAfterTranscription = false)
     {
@@ -377,11 +383,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         catch (TranscriptionException exception)
         {
-            TransitionToFailure(GetTranscriptionFailureMessage(exception));
+            HandleTranscriptionFailure(GetTranscriptionFailureMessage(exception));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            TransitionToFailure();
+            if (_stateController.Current == DictationState.Transcribing)
+            {
+                HandleTranscriptionFailure("Transcription failed");
+            }
+            else
+            {
+                TransitionToFailure();
+            }
         }
     }
 
@@ -416,7 +429,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         else
         {
-            _stateController.TransitionTo(DictationState.RecoverableFailure);
+            _stateController.TransitionTo(DictationState.ReadyToInsert);
             StatusText = result.Message;
         }
 
@@ -462,7 +475,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         catch (TranscriptionException exception)
         {
-            TransitionToFailure(GetTranscriptionFailureMessage(exception));
+            HandleTranscriptionFailure(GetTranscriptionFailureMessage(exception));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleTranscriptionFailure("Transcription failed");
         }
     }
 
@@ -496,6 +513,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             new TranscriptionContext("no", null),
             _lifetimeCancellation.Token);
         TranscriptText = transcription.Text;
+        DeleteLastRecording();
         _stateController.TransitionTo(DictationState.ReadyToInsert);
         StatusText = _windowTarget is null
             ? "Transcript ready — copy it or use the shortcut from another app to insert"
@@ -545,6 +563,32 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         StatusText = message;
         _insertCommand.RaiseCanExecuteChanged();
         RaiseRecoveryCanExecuteChanged();
+    }
+
+    private void HandleTranscriptionFailure(string message)
+    {
+        TransitionToFailure(message);
+        if (_retainFailedAudio)
+        {
+            return;
+        }
+
+        DeleteLastRecording();
+        _insertAfterTranscription = false;
+        if (_stateController.Current == DictationState.RecoverableFailure)
+        {
+            _stateController.TransitionTo(DictationState.Idle);
+        }
+
+        StatusText = $"{message} The recording was deleted.";
+        _startRecordingCommand.RaiseCanExecuteChanged();
+        RaiseRecoveryCanExecuteChanged();
+    }
+
+    private void DeleteLastRecording()
+    {
+        PendingRecordingRecovery.Delete(_lastRecording?.FilePath ?? _outputPath);
+        _lastRecording = null;
     }
 
     private static string GetTranscriptionFailureMessage(TranscriptionException exception) =>

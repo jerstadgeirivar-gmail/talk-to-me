@@ -19,6 +19,14 @@ There is no automatic fallback. Saving Settings changes the coordinator for the 
 
 A loopback server may use HTTP. A non-loopback URL must use HTTPS because “local server” does not guarantee local audio handling when pointed at another host.
 
+## Recording and clipboard privacy
+
+Completed audio is deleted as soon as transcription succeeds. Audio from a failed transcription is also deleted by default. Enable **Keep audio after failed transcription** only when you want the main-window retry and delete controls; changing this setting applies immediately after saving.
+
+Automatic text insertion temporarily stages the transcript on the Windows clipboard. TalkToMe restores the previous clipboard data when insertion succeeds and it still owns the staged text. It performs the same cleanup when target activation or pasting fails. Choosing **Copy transcript** is explicit and leaves the transcript on the clipboard.
+
+An application or Windows interruption can leave a recoverable WAV file in `%LOCALAPPDATA%\TalkToMe\Pending`. On the next start, TalkToMe offers recovery or deletion.
+
 ## Environment variables
 
 - `TALKTOME_AZURE_ENDPOINT`, `TALKTOME_AZURE_API_KEY`, `TALKTOME_AZURE_DEPLOYMENT`, `TALKTOME_AZURE_API_VERSION` override Azure fields after Azure has been selected; they never change provider selection.

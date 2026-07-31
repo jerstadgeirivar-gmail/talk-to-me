@@ -27,7 +27,7 @@ CloseApplications=yes
 RestartApplications=no
 
 [Files]
-Source: "..\artifacts\publish\win-x64\*"; DestDir: "{app}"; Excludes: "Models\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\artifacts\publish\win-x64\*"; DestDir: "{app}"; Excludes: "Models\*,*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]

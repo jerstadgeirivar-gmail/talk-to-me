@@ -24,7 +24,7 @@ Confirm the original target still exists and is not elevated. The transcript rem
 
 ## Recording or transcription failed
 
-Pending recordings are stored under `%LOCALAPPDATA%\TalkToMe\Pending`. Do not share them unless their content is known to be non-sensitive. The selected provider is never silently replaced; correct the exact model, capability, credential, endpoint, or network error before retrying.
+Pending recordings are stored under `%LOCALAPPDATA%\TalkToMe\Pending`. Failed transcriptions are deleted by default; enable **Keep audio after failed transcription** before recording only when retry support is required. Do not share retained recordings unless their content is known to be non-sensitive. The selected provider is never silently replaced; correct the exact model, capability, credential, endpoint, or network error before retrying.
 
 If TalkToMe or Windows stops during recording, restart TalkToMe. The newest interrupted WAV is repaired and shown as recovered audio. Choose **Retry transcription**, or **Delete audio** to discard it. After recovery, focus the desired text field and press the configured hotkey to insert a ready transcript if the original target is no longer valid.
 

@@ -10,6 +10,7 @@ internal sealed record AppLaunchOptions(
     string? ImportKeyFile,
     string? DiagnosticDataDirectory,
     double DiagnosticSpeed,
+    bool UseConfiguredProvider,
     bool ShowWindow,
     bool StartMinimized)
 {
@@ -21,6 +22,7 @@ internal sealed record AppLaunchOptions(
         string? importKeyFile = null;
         string? diagnosticDataDirectory = null;
         double diagnosticSpeed = 1;
+        bool useConfiguredProvider = false;
         bool showWindow = false;
         bool startMinimized = false;
 
@@ -36,6 +38,12 @@ internal sealed record AppLaunchOptions(
             if (option == "--minimized")
             {
                 startMinimized = true;
+                continue;
+            }
+
+            if (option == "--diagnostic-live-provider")
+            {
+                useConfiguredProvider = true;
                 continue;
             }
 
@@ -87,6 +95,7 @@ internal sealed record AppLaunchOptions(
             importKeyFile,
             diagnosticDataDirectory,
             diagnosticSpeed,
+            useConfiguredProvider,
             showWindow,
             startMinimized);
     }

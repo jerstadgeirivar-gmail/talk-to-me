@@ -27,25 +27,32 @@ public sealed class ClipboardTextInsertionService(
             },
             cancellationToken);
 
-        if (!await windowTargetService.ActivateAsync(target, cancellationToken))
-        {
-            return new TextInsertionResult(
-                Inserted: false,
-                TranscriptLeftOnClipboard: true,
-                "The target window could not be activated. The text remains on the clipboard.");
-        }
-
         try
         {
+            if (!await windowTargetService.ActivateAsync(target, cancellationToken))
+            {
+                await RestorePreviousClipboardAsync(text, previousClipboard, cancellationToken);
+                return new TextInsertionResult(
+                    Inserted: false,
+                    TranscriptLeftOnClipboard: false,
+                    "The target window could not be activated. The previous clipboard contents were restored.");
+            }
+
             keyboardInput.Paste();
             await Task.Delay(200, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            await RestorePreviousClipboardAsync(text, previousClipboard, CancellationToken.None);
+            throw;
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            await RestorePreviousClipboardAsync(text, previousClipboard, cancellationToken);
             return new TextInsertionResult(
                 Inserted: false,
-                TranscriptLeftOnClipboard: true,
-                "Text insertion failed. The text remains on the clipboard.");
+                TranscriptLeftOnClipboard: false,
+                "Text insertion failed. The previous clipboard contents were restored.");
         }
 
         bool stillOwned = await RetryClipboardAsync(
@@ -66,6 +73,26 @@ public sealed class ClipboardTextInsertionService(
             Inserted: true,
             TranscriptLeftOnClipboard: !stillOwned,
             stillOwned ? "Text inserted." : "Text inserted; another app changed the clipboard.");
+    }
+
+    private async Task RestorePreviousClipboardAsync(
+        string text,
+        object? previousClipboard,
+        CancellationToken cancellationToken)
+    {
+        bool stillOwned = await RetryClipboardAsync(
+            () => clipboard.ContainsText(text),
+            cancellationToken);
+        if (stillOwned)
+        {
+            await RetryClipboardAsync(
+                () =>
+                {
+                    clipboard.RestoreData(previousClipboard);
+                    return true;
+                },
+                cancellationToken);
+        }
     }
 
     private static async Task<T> RetryClipboardAsync<T>(

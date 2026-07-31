@@ -47,7 +47,8 @@ public partial class MainWindow : Window
                 _settingsStore,
                 _secretStore,
                 _providerFactory,
-                (providerId, cancellationToken) => _providerCoordinator?.ApplySelectionAsync(providerId, cancellationToken) ?? Task.CompletedTask),
+                (providerId, cancellationToken) => _providerCoordinator?.ApplySelectionAsync(providerId, cancellationToken) ?? Task.CompletedTask,
+                _viewModel.ConfigureFailedAudioRetention),
             ApplyHotkey,
             ApplyVoiceCommands)
         {

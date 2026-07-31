@@ -22,7 +22,7 @@ public sealed record ApplicationSettings
 
     public string TechnicalVocabulary { get; init; } = string.Empty;
 
-    public bool RetainFailedAudio { get; init; } = true;
+    public bool RetainFailedAudio { get; init; }
 
     public bool StartWithWindows { get; init; }
 

@@ -9,14 +9,15 @@ public sealed class SettingsWindowViewModel(
     IApplicationSettingsStore settingsStore,
     INamedSecretStore secretStore,
     ITranscriptionProviderFactory providerFactory,
-    Func<string, CancellationToken, Task> applyProvider) : INotifyPropertyChanged
+    Func<string, CancellationToken, Task> applyProvider,
+    Action<bool> applyFailedAudioRetention) : INotifyPropertyChanged
 {
     private string _selectedProviderId = TranscriptionProviderIds.LocalWhisper;
     private string _azureEndpoint = string.Empty, _azureDeployment = string.Empty, _azureApiVersion = "2025-04-01-preview";
     private string _lmStudioBaseUrl = "http://localhost:1234", _lmStudioModel = string.Empty;
     private string _ollamaBaseUrl = "http://localhost:11434", _ollamaModel = string.Empty;
     private string _technicalVocabulary = string.Empty, _hotkey = "Win+<", _targetWindowPolicy = "OriginalTarget", _diagnosticLoggingLevel = "Information";
-    private bool _retainFailedAudio = true, _startWithWindows, _clipboardOnlyMode, _voiceCommandsEnabled, _isBusy;
+    private bool _retainFailedAudio, _startWithWindows, _clipboardOnlyMode, _voiceCommandsEnabled, _isBusy;
     private string _azureSecretStatus = "Not configured", _lmStudioSecretStatus = "Not configured", _ollamaSecretStatus = "Not configured";
     private string _providerStatus = "Not tested", _statusText = string.Empty, _progressText = string.Empty;
 
@@ -79,6 +80,7 @@ public sealed class SettingsWindowViewModel(
     {
         if (!Validate() || !applyHotkey(Hotkey.Trim())) return false;
         await SaveConfigurationAsync(cancellationToken);
+        applyFailedAudioRetention(RetainFailedAudio);
         await SaveSecretAsync(TranscriptionProviderIds.AzureOpenAi, azureKey, value => AzureSecretStatus = value, cancellationToken);
         await SaveSecretAsync(TranscriptionProviderIds.LmStudio, lmStudioToken, value => LmStudioSecretStatus = value, cancellationToken);
         await SaveSecretAsync(TranscriptionProviderIds.Ollama, ollamaToken, value => OllamaSecretStatus = value, cancellationToken);

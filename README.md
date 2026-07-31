@@ -1,98 +1,86 @@
 # TalkToMe
 
-TalkToMe is a Windows 11 WPF utility for recording Norwegian dictation, transcribing locally by default, and inserting the completed text into the originally focused application. Azure OpenAI remains optional; LM Studio and Ollama profiles report their current speech-to-text limitation honestly.
+TalkToMe is a Windows 11 dictation app. Press a shortcut, speak, and press it again to transcribe your speech and insert the text into the application you were using.
 
-In addition to the global hotkey, TalkToMe can listen locally for the English
-keyword **computer**. The first occurrence plays a short chime and starts
-recording; the next occurrence stops recording, plays the chime again, removes
-the closing keyword from the saved audio, and runs the normal transcription and
-insertion flow. This local listener is disabled by default and can be enabled in
-**Settings → Dictation preferences**. The same chime confirms recording start
-and stop when using the global hotkey. Only the completed dictation recording
-is sent to the configured Azure deployment.
+Transcription runs locally on your computer by default. You can optionally connect TalkToMe to an Azure OpenAI transcription deployment.
 
-## Prerequisites
+## Install
 
-- Windows 11
-- .NET 10 SDK for development
-- About 500 MB free disk space, 1.5 GB available RAM, and internet access for the one-time default model setup
+1. Open the repository's [latest release](https://github.com/jerstadgeirivar-gmail/talk-to-me/releases/latest).
+2. Download `TalkToMe-Setup.exe` and the accompanying `.sha256` file.
+3. Optionally verify the download in PowerShell:
 
-## Build
+   ```powershell
+   Get-FileHash .\TalkToMe-Setup.exe -Algorithm SHA256
+   ```
 
-```powershell
-dotnet restore TalkToMe.sln
-dotnet build TalkToMe.sln --configuration Debug
-dotnet test tests\TalkToMe.Infrastructure.Tests\TalkToMe.Infrastructure.Tests.csproj --configuration Debug
-```
+   Confirm that the displayed hash matches the value in the downloaded `.sha256` file.
 
-Launch the development build:
+4. Run `TalkToMe-Setup.exe`.
 
-```powershell
-src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe
-```
+The application is currently unsigned, so Windows may display a Microsoft Defender SmartScreen warning. Confirm that the installer came from this repository before choosing to run it.
 
-Installers are produced by the manual **Build Windows installer** workflow in
-the repository's **Actions** tab. Choose **Run workflow** and optionally enter a
-three- or four-part version such as `1.2.0`. If no version is supplied, the
-workflow uses `1.0.<run number>`.
+TalkToMe installs for the current Windows user and starts minimized in the system tray. It does not require administrator access.
 
-After the run completes, the workflow uploads the `TalkToMe-Setup-<version>`
-artifact and publishes the installer plus its SHA-256 checksum as the latest
-private GitHub Release.
+## First start
 
-Installed Release builds use the authenticated GitHub CLI to check that private
-release at startup, after Windows resumes, and once per hour. When TalkToMe is
-idle, it verifies the checksum, runs the installer silently, and restarts
-minimized. The main window also provides **Check for updates** and displays the
-running application version. Debug builds never update automatically.
+TalkToMe uses Local Whisper by default. The speech model is not bundled with the installer, so on first start the app asks permission to download approximately 190 MB. The model is verified before installation and stored in `%LOCALAPPDATA%\TalkToMe\Models`.
 
-The resulting installer registers TalkToMe to start with Windows using the
-`--minimized` option, which keeps the main window hidden in the system tray.
+Allow roughly 500 MB of free disk space and 1.5 GB of available memory. Transcription speed depends on your CPU.
 
-The default global toggle is `Ctrl+Alt+F9`. The normal flow captures the foreground target on the first press and stops recording on the second. The main window can also start and stop recording when a separate target is not required.
+## Dictate text
 
-## Configuration
+1. Place the cursor in the application where the text should appear.
+2. Press `Win+<` to start recording.
+3. Speak your dictation.
+4. Press `Win+<` again to stop recording.
+5. Wait for transcription. TalkToMe returns focus to the original window and inserts the completed text.
 
-Open **Settings → Transcription** to select and test a provider. Fresh installations select Local Whisper. Existing installations with complete Azure settings and no saved provider migrate once to Azure. Provider credentials are namespaced current-user DPAPI ciphertext under `%LOCALAPPDATA%\TalkToMe\Secrets`; they are never stored in `settings.json` or displayed after saving. See [configuration](docs/configuration.md).
+You can also open TalkToMe from its system-tray icon and use the on-screen recording controls. If automatic insertion is unavailable, copy the completed transcript from the main window.
 
-The small installer includes Whisper.net 1.9.1 and its CPU whisper.cpp runtime, but not the large model. On the first Local Whisper start, TalkToMe detects that the model is absent and asks permission to download and set up the pinned multilingual `small-q5_1` model (190,085,487 bytes; SHA-256 `ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb`). The download has progress and cancellation and is installed atomically only after verification. No Python, CUDA, account, or separate server is needed. The model is kept under `%LOCALAPPDATA%\TalkToMe\Models`; **Repair model** repeats the same verified setup flow.
+The shortcut can be changed under **Settings → Dictation preferences**.
 
-Development overrides:
+## Voice command
 
-```text
-TALKTOME_AZURE_ENDPOINT
-TALKTOME_AZURE_API_KEY
-TALKTOME_AZURE_DEPLOYMENT
-TALKTOME_AZURE_API_VERSION
-TALKTOME_WHISPER_MODEL_PATH
-```
+TalkToMe can listen locally for the English keyword **computer**:
 
-## Unattended Validation
+- Say **computer** once to start recording.
+- Say **computer** again to stop and transcribe.
 
-Record-only scenario:
+Voice-command listening is disabled by default. Enable it under **Settings → Dictation preferences**. Keyword recognition happens locally.
 
-```powershell
-dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe _init\norwegian-audio-speech-test.mp3 artifacts\validation\record-only
-```
+## Choose a transcription provider
 
-External insertion scenario:
+Open **Settings → Transcription**.
 
-```powershell
-dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe _init\norwegian-audio-speech-test.mp3 artifacts\validation\insertion "Dette er en test av norsk diktering." tools\TalkToMe.TestTarget\bin\Debug\net10.0-windows\TalkToMe.TestTarget.exe
-```
+- **Local Whisper** is the default and keeps audio on this computer.
+- **Azure OpenAI** sends completed recordings to the Azure endpoint you configure. The API key is protected for the current Windows user with DPAPI.
+- **LM Studio** and **Ollama** profiles can be configured, but their currently supported APIs do not provide speech-to-text, so TalkToMe does not send audio to them.
 
-Settings and protected-storage scenario:
+There is no automatic fallback between providers. Use **Test provider** after changing the configuration. Use **Repair model** if the local Whisper model is missing or damaged.
 
-```powershell
-dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe --settings artifacts\validation\settings
-```
+## Privacy and local data
 
-See [docs/manual-test-plan.md](docs/manual-test-plan.md) and [docs/troubleshooting.md](docs/troubleshooting.md).
+- Local Whisper audio stays on your computer.
+- Azure OpenAI receives audio only when it is the selected provider.
+- Completed recordings are deleted after transcription.
+- Recordings from failed transcriptions are deleted by default. You can explicitly enable **Keep audio after failed transcription** if you want retry support.
+- During automatic insertion, TalkToMe temporarily uses the Windows clipboard and restores its previous contents. If activation or pasting fails, the previous clipboard contents are restored as well.
+- Choosing **Copy transcript** intentionally places the transcript on the clipboard until another application replaces it.
+- An interrupted session may leave recoverable audio under `%LOCALAPPDATA%\TalkToMe\Pending`; the main window allows you to delete it.
+- Settings and protected credentials are stored below `%LOCALAPPDATA%\TalkToMe`.
 
-## Limitations
+To remove all local TalkToMe data after uninstalling, delete `%LOCALAPPDATA%\TalkToMe` after confirming that it contains no recording you want to keep.
 
-- A normal-integrity process cannot inject input into an elevated target because of Windows UIPI.
-- Microphone selection and a separately owned Windows 11 Notepad smoke test remain incomplete.
-- Live Azure validation requires endpoint and deployment configuration in addition to the protected key.
-- LM Studio 0.4.x and Ollama 0.31.1 official APIs were verified on 2026-07-31; neither documents an audio-transcription endpoint. Their profiles never send audio to chat/text endpoints.
-- The binaries are unsigned and may trigger Microsoft Defender SmartScreen warnings.
+## Troubleshooting
+
+- If text is not inserted into an administrator-elevated application, run both applications at the same Windows integrity level.
+- If the shortcut does not work, choose another shortcut in Settings; another application may already own it.
+- If local transcription is unavailable, open Settings and select **Repair model**.
+- If Windows blocks the installer, verify that it came from this repository and that its SHA-256 hash matches the release checksum.
+
+See the full [troubleshooting guide](docs/troubleshooting.md) and [configuration reference](docs/configuration.md).
+
+## Developers
+
+Build instructions, validation commands, architecture notes, and release details are in the [development guide](docs/development.md).
