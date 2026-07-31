@@ -20,7 +20,7 @@ public sealed partial class JsonApplicationSettingsStore(string? settingsFile = 
             stream,
             SettingsJsonContext.Default.ApplicationSettings,
             cancellationToken);
-        return settings ?? new ApplicationSettings();
+        return Normalize(settings);
     }
 
     public async Task SaveAsync(ApplicationSettings settings, CancellationToken cancellationToken)
@@ -45,6 +45,34 @@ public sealed partial class JsonApplicationSettingsStore(string? settingsFile = 
         }
 
         File.Move(temporaryPath, _settingsFile, overwrite: true);
+    }
+
+    private static ApplicationSettings Normalize(ApplicationSettings? settings)
+    {
+        ApplicationSettings defaults = new();
+        if (settings is null)
+        {
+            return defaults;
+        }
+
+        // System.Text.Json accepts explicit nulls for non-nullable reference properties.
+        // Older settings files can therefore bypass the property initializers and pass
+        // null strings to application code that correctly relies on this schema.
+        return settings with
+        {
+            LocalWhisperModel = settings.LocalWhisperModel ?? defaults.LocalWhisperModel,
+            AzureEndpoint = settings.AzureEndpoint ?? defaults.AzureEndpoint,
+            AzureDeployment = settings.AzureDeployment ?? defaults.AzureDeployment,
+            AzureApiVersion = settings.AzureApiVersion ?? defaults.AzureApiVersion,
+            LmStudioBaseUrl = settings.LmStudioBaseUrl ?? defaults.LmStudioBaseUrl,
+            LmStudioModel = settings.LmStudioModel ?? defaults.LmStudioModel,
+            OllamaBaseUrl = settings.OllamaBaseUrl ?? defaults.OllamaBaseUrl,
+            OllamaModel = settings.OllamaModel ?? defaults.OllamaModel,
+            TechnicalVocabulary = settings.TechnicalVocabulary ?? defaults.TechnicalVocabulary,
+            TargetWindowPolicy = settings.TargetWindowPolicy ?? defaults.TargetWindowPolicy,
+            Hotkey = settings.Hotkey ?? defaults.Hotkey,
+            DiagnosticLoggingLevel = settings.DiagnosticLoggingLevel ?? defaults.DiagnosticLoggingLevel,
+        };
     }
 
     [JsonSerializable(typeof(ApplicationSettings))]

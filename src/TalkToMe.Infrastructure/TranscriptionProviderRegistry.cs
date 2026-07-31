@@ -1,4 +1,5 @@
 using System.Net;
+using System.Speech.Synthesis;
 using TalkToMe.Core;
 
 namespace TalkToMe.Infrastructure;
@@ -92,13 +93,46 @@ public sealed class TranscriptionProviderRegistry(
     private async Task<ProviderTestResult> TestAzureAsync(ApplicationSettings settings, CancellationToken cancellationToken)
     {
         string? key = await secretStore.GetSecretAsync(TranscriptionProviderIds.AzureOpenAi, cancellationToken);
+        AzureTranscriptionOptions? options;
         try
         {
-            return AzureTranscriptionOptions.FromConfiguration(settings, key) is null
-                ? new(ProviderReadiness.InvalidConfiguration, "Azure endpoint, deployment, and protected API key are required.")
-                : new(ProviderReadiness.Configured, "Configured. A real audio transcription verifies deployment readiness.");
+            options = AzureTranscriptionOptions.FromConfiguration(settings, key);
         }
         catch (ArgumentException exception) { return new(ProviderReadiness.InvalidConfiguration, exception.Message); }
+
+        if (options is null)
+        {
+            return new(ProviderReadiness.InvalidConfiguration, "Azure endpoint, deployment, and protected API key are required.");
+        }
+
+        string audioPath = Path.Combine(Path.GetTempPath(), $"talk-to-me-provider-test-{Guid.NewGuid():N}.wav");
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using (SpeechSynthesizer synthesizer = new())
+            {
+                synthesizer.SetOutputToWaveFile(audioPath);
+                synthesizer.Speak("This is a Talk To Me transcription provider test.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            FileInfo audioFile = new(audioPath);
+            await using AzureTranscriptionProvider provider = new(options with { Timeout = TimeSpan.FromSeconds(30) });
+            TranscriptionResult result = await provider.TranscribeAsync(
+                new RecordedAudio(audioPath, TimeSpan.Zero, audioFile.Length),
+                new TranscriptionContext("en", "TalkToMe provider readiness test"),
+                cancellationToken);
+            return new(
+                ProviderReadiness.Ready,
+                $"Ready — Azure transcribed test audio in {result.ResponseTime.TotalSeconds:N1} seconds.");
+        }
+        finally
+        {
+            if (File.Exists(audioPath))
+            {
+                File.Delete(audioPath);
+            }
+        }
     }
 
     private static UnsupportedServerTranscriptionProvider CreateUnsupported(string baseUrl, string name)

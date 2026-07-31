@@ -1,6 +1,6 @@
 <Window x:Class="TalkToMe.App.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TalkToMe Settings" Width="700" Height="760" MinWidth="560" MinHeight="560"
+        Title="TalkToMe Settings" Width="760" Height="920" MinWidth="560" MinHeight="560"
         Icon="/Assets/TalkToMe.ico" WindowStartupLocation="CenterOwner"
         AutomationProperties.AutomationId="SettingsWindow" AutomationProperties.Name="TalkToMe settings">
     <Grid>

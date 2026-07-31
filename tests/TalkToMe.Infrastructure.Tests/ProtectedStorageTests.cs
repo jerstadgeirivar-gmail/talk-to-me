@@ -81,6 +81,45 @@ public sealed class ProtectedStorageTests
         }
     }
 
+    [Fact]
+    public async Task ExplicitNullStringsInLegacySettingsUseCurrentDefaults()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "settings.json");
+        try
+        {
+            await File.WriteAllTextAsync(
+                path,
+                """
+                {
+                  "TranscriptionProviderId": "azure-openai",
+                  "AzureEndpoint": "https://example.openai.azure.com",
+                  "AzureDeployment": "speech-deployment",
+                  "LocalWhisperModel": null,
+                  "LmStudioBaseUrl": null,
+                  "LmStudioModel": null,
+                  "OllamaBaseUrl": null,
+                  "OllamaModel": null
+                }
+                """);
+
+            JsonApplicationSettingsStore store = new(path);
+            ApplicationSettings actual = await store.LoadAsync(CancellationToken.None);
+
+            Assert.Equal("small-q5_1", actual.LocalWhisperModel);
+            Assert.Equal("http://localhost:1234", actual.LmStudioBaseUrl);
+            Assert.Equal(string.Empty, actual.LmStudioModel);
+            Assert.Equal("http://localhost:11434", actual.OllamaBaseUrl);
+            Assert.Equal(string.Empty, actual.OllamaModel);
+            Assert.Equal("https://example.openai.azure.com", actual.AzureEndpoint);
+            Assert.Equal("speech-deployment", actual.AzureDeployment);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string CreateTemporaryDirectory()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"talk-to-me-tests-{Guid.NewGuid():N}");

@@ -71,8 +71,7 @@ public sealed class SettingsWindowViewModel(
         AzureSecretStatus = hasAzure ? "Configured" : "Not configured";
         LmStudioSecretStatus = await secretStore.HasSecretAsync(TranscriptionProviderIds.LmStudio, cancellationToken) ? "Configured" : "Not configured";
         OllamaSecretStatus = await secretStore.HasSecretAsync(TranscriptionProviderIds.Ollama, cancellationToken) ? "Configured" : "Not configured";
-        ProviderTestResult readiness = await providerFactory.TestAsync(SelectedProviderId, cancellationToken);
-        ProviderStatus = readiness.Message;
+        ProviderStatus = "Not tested.";
     }
 
     public async Task<bool> SaveAsync(string azureKey, string lmStudioToken, string ollamaToken,

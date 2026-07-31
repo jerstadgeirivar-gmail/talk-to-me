@@ -38,9 +38,10 @@ const string insertButtonAutomationId = "InsertButton";
 bool settingsScenario = args.Length == 3 && args[1] == "--settings";
 bool capabilitiesScenario = args.Length == 3 && args[1] == "--capabilities";
 bool firstRunModelScenario = args.Length == 3 && args[1] == "--first-run-model";
+bool liveProviderScenario = args.Length == 3 && args[1] == "--live-provider";
 bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
 bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
-if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveLocalScenario && args.Length is not 3 and not 5)
+if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveLocalScenario && args.Length is not 3 and not 5)
 {
     Console.Error.WriteLine(
         "Usage: TalkToMe.UiDriver <application-path> <audio-fixture-path> <evidence-directory> [diagnostic-transcript|--live target-application-path]");
@@ -48,13 +49,17 @@ if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liv
 }
 
 string applicationPath = Path.GetFullPath(args[0]);
-string? audioFixturePath = (settingsScenario || capabilitiesScenario || firstRunModelScenario) ? null : Path.GetFullPath(args[1]);
+string? audioFixturePath = (settingsScenario || capabilitiesScenario || firstRunModelScenario || liveProviderScenario) ? null : Path.GetFullPath(args[1]);
 string evidenceDirectory = Path.GetFullPath(args[2]);
 string? expectedTranscript = !settingsScenario && !liveAzureScenario && args.Length == 5 ? args[3] : null;
 string? targetApplicationPath = args.Length == 5 ? Path.GetFullPath(args[4]) : null;
 bool insertionScenario = expectedTranscript is not null || liveAzureScenario;
 bool transcriptionScenario = insertionScenario || liveLocalScenario;
 Directory.CreateDirectory(evidenceDirectory);
+if (settingsScenario)
+{
+    PrepareLegacyNullSettings(evidenceDirectory);
+}
 string recordingPath = Path.Combine(evidenceDirectory, "simulated-recording.wav");
 
 Application? application = null;
@@ -74,7 +79,11 @@ try
         UseShellExecute = false,
         WorkingDirectory = Path.GetDirectoryName(applicationPath),
     };
-    if (settingsScenario || capabilitiesScenario || firstRunModelScenario)
+    if (liveProviderScenario)
+    {
+        // Use the application's real configured provider and protected credential.
+    }
+    else if (settingsScenario || capabilitiesScenario || firstRunModelScenario)
     {
         startInfo.ArgumentList.Add("--diagnostic-data-directory");
         startInfo.ArgumentList.Add(Path.Combine(evidenceDirectory, "data"));
@@ -112,6 +121,12 @@ try
     {
         RunSettingsScenario(application, automation, window, evidenceDirectory);
         Console.WriteLine($"PASS pid={processId} settings=protected-and-removed");
+        return 0;
+    }
+    if (liveProviderScenario)
+    {
+        RunLiveProviderScenario(application, automation, window, evidenceDirectory);
+        Console.WriteLine($"PASS pid={processId} live-provider=ready");
         return 0;
     }
     if (capabilitiesScenario)
@@ -347,6 +362,35 @@ static int CountSemanticAnchors(string transcript)
     return anchors.Count(anchor => transcript.Contains(anchor, StringComparison.OrdinalIgnoreCase));
 }
 
+static void PrepareLegacyNullSettings(string evidenceDirectory)
+{
+    string dataDirectory = Path.Combine(evidenceDirectory, "data");
+    Directory.CreateDirectory(dataDirectory);
+    File.WriteAllText(
+        Path.Combine(dataDirectory, "settings.json"),
+        """
+        {
+          "TranscriptionProviderId": "azure-openai",
+          "LocalWhisperModel": null,
+          "AzureEndpoint": "https://example.openai.azure.com",
+          "AzureDeployment": "speech-deployment",
+          "AzureApiVersion": "2025-04-01-preview",
+          "LmStudioBaseUrl": null,
+          "LmStudioModel": null,
+          "OllamaBaseUrl": null,
+          "OllamaModel": null,
+          "TechnicalVocabulary": "",
+          "RetainFailedAudio": true,
+          "StartWithWindows": false,
+          "ClipboardOnlyMode": false,
+          "TargetWindowPolicy": "OriginalTarget",
+          "Hotkey": "Win+<",
+          "VoiceCommandsEnabled": false,
+          "DiagnosticLoggingLevel": "Information"
+        }
+        """);
+}
+
 static void RunSettingsScenario(
     Application application,
     UIA3Automation automation,
@@ -359,6 +403,7 @@ static void RunSettingsScenario(
         mainWindow,
         "SettingsWindow",
         TimeSpan.FromSeconds(10));
+    AssertSettingsFitsWithoutScrolling(settingsWindow);
 
     FindByAutomationId(settingsWindow, "ProviderSelector").AsComboBox().Select("Azure OpenAI");
     AutomationElement endpoint = FindByAutomationId(settingsWindow, "AzureEndpointTextBox");
@@ -366,6 +411,7 @@ static void RunSettingsScenario(
     AutomationElement apiVersion = FindByAutomationId(settingsWindow, "AzureApiVersionTextBox");
     AutomationElement password = FindByAutomationId(settingsWindow, "ApiKeyPasswordBox");
     AutomationElement save = FindByAutomationId(settingsWindow, "SaveSettingsButton");
+    AutomationElement testProvider = FindByAutomationId(settingsWindow, "TestProviderButton");
     AutomationElement remove = FindByAutomationId(settingsWindow, "RemoveApiKeyButton");
 
     endpoint.AsTextBox().Text = "http://invalid.example";
@@ -378,11 +424,18 @@ static void RunSettingsScenario(
         TimeSpan.FromSeconds(5));
 
     string syntheticKey = $"synthetic-{Guid.NewGuid():N}";
-    endpoint.AsTextBox().Text = "https://example.openai.azure.com/";
+    endpoint.AsTextBox().Text = "https://127.0.0.1:1/";
     apiVersion.AsTextBox().Text = "preview";
     password.Patterns.Value.Pattern.SetValue(syntheticKey);
     save.AsButton().Invoke();
     WaitForElementName(settingsWindow, "ApiKeyStatusText", "Configured", TimeSpan.FromSeconds(5));
+
+    testProvider.AsButton().Invoke();
+    WaitForElementName(
+        settingsWindow,
+        "ProviderStatusText",
+        "Azure transcription could not be reached. The audio was retained for retry.",
+        TimeSpan.FromSeconds(15));
 
     string dataDirectory = Path.Combine(evidenceDirectory, "data");
     string credentialPath = Path.Combine(dataDirectory, "Secrets", "azure-openai.bin");
@@ -390,6 +443,23 @@ static void RunSettingsScenario(
     if (!File.Exists(credentialPath) || !File.Exists(settingsPath))
     {
         throw new InvalidOperationException("Settings or protected credential file was not created.");
+    }
+
+    string savedSettings = File.ReadAllText(settingsPath);
+    string[] normalizedProperties =
+    [
+        "LocalWhisperModel",
+        "LmStudioBaseUrl",
+        "LmStudioModel",
+        "OllamaBaseUrl",
+        "OllamaModel",
+    ];
+    foreach (string property in normalizedProperties)
+    {
+        if (savedSettings.Contains($"\"{property}\":null", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"The saved settings still contain a null {property} value.");
+        }
     }
 
     byte[] protectedBytes = File.ReadAllBytes(credentialPath);
@@ -411,7 +481,11 @@ static void RunSettingsScenario(
     File.WriteAllText(
         Path.Combine(evidenceDirectory, "result.txt"),
         $"ProcessId: {application.ProcessId}{Environment.NewLine}" +
+        "DefaultSettingsFitsWithoutScrolling: True" + Environment.NewLine +
         "InvalidHttpsRejected: True" + Environment.NewLine +
+        "LegacyNullSettingsNormalized: True" + Environment.NewLine +
+        "ProviderButtonPerformedRealRequest: True" + Environment.NewLine +
+        "ProviderStatusReacted: True" + Environment.NewLine +
         "ProtectedCredentialCreated: True" + Environment.NewLine +
         "PlaintextAbsent: True" + Environment.NewLine +
         "CredentialRemoved: True" + Environment.NewLine +
@@ -448,6 +522,70 @@ static void RunCapabilitiesScenario(
         "LMStudioAudioSent: False" + Environment.NewLine + "OllamaAudioSent: False" + Environment.NewLine + "Result: PASS" + Environment.NewLine);
     settingsWindow.Close();
     if (!invokeTask.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Settings dialog did not close.");
+}
+
+static void RunLiveProviderScenario(
+    Application application,
+    UIA3Automation automation,
+    AutomationElement mainWindow,
+    string evidenceDirectory)
+{
+    AutomationElement settingsButton = FindByAutomationId(mainWindow, "SettingsButton");
+    Task invokeTask = Task.Run(() => settingsButton.AsButton().Invoke());
+    Window settingsWindow = WaitForDescendantWindow(mainWindow, "SettingsWindow", TimeSpan.FromSeconds(10));
+    AssertSettingsFitsWithoutScrolling(settingsWindow);
+    ComboBox provider = FindByAutomationId(settingsWindow, "ProviderSelector").AsComboBox();
+    string selectedProvider = provider.SelectedItem?.Name ?? string.Empty;
+    if (!selectedProvider.Contains("Azure OpenAI", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException($"Expected the configured provider to be Azure OpenAI, but found '{selectedProvider}'.");
+    }
+
+    WaitForElementName(settingsWindow, "ProviderStatusText", "Not tested.", TimeSpan.FromSeconds(10));
+    FindByAutomationId(settingsWindow, "TestProviderButton").AsButton().Invoke();
+    AutomationElement status = WaitForElementNameContains(
+        settingsWindow,
+        "ProviderStatusText",
+        "Ready — Azure transcribed test audio",
+        TimeSpan.FromSeconds(45));
+
+    CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "live-provider-window.png"));
+    WriteAutomationTree(settingsWindow, Path.Combine(evidenceDirectory, "live-provider-uia-tree.txt"));
+    File.WriteAllText(
+        Path.Combine(evidenceDirectory, "result.txt"),
+        $"ProcessId: {application.ProcessId}{Environment.NewLine}" +
+        "DefaultSettingsFitsWithoutScrolling: True" + Environment.NewLine +
+        $"Provider: {selectedProvider}{Environment.NewLine}" +
+        $"Status: {status.Name}{Environment.NewLine}" +
+        "RealAudioRequest: True" + Environment.NewLine +
+        "Result: PASS" + Environment.NewLine);
+    settingsWindow.Close();
+    if (!invokeTask.Wait(TimeSpan.FromSeconds(5)))
+    {
+        throw new TimeoutException("Settings dialog invocation did not complete after close.");
+    }
+}
+
+static void AssertSettingsFitsWithoutScrolling(AutomationElement settingsWindow)
+{
+    Rectangle bounds = Rectangle.Round(settingsWindow.BoundingRectangle);
+    if (bounds.Width < 760 || bounds.Height < 920)
+    {
+        throw new InvalidOperationException(
+            $"Settings opened at {bounds.Width}x{bounds.Height}; expected at least 760x920.");
+    }
+
+    AutomationElement? verticalScrollBar = settingsWindow.FindFirstDescendant(
+        condition => condition.ByAutomationId("VerticalScrollBar"));
+    if (verticalScrollBar is not null)
+    {
+        Rectangle scrollBounds = Rectangle.Round(verticalScrollBar.BoundingRectangle);
+        if (scrollBounds.Width > 0 && scrollBounds.Height > 0)
+        {
+            throw new InvalidOperationException(
+                $"The Settings transcription tab still requires vertical scrolling ({scrollBounds}).");
+        }
+    }
 }
 
 static void RunFirstRunModelScenario(
