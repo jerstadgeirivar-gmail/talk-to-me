@@ -1,5 +1,11 @@
 # Troubleshooting
 
+## App exits while installing an update
+
+Installed Release builds check for updates automatically at startup and hourly. Installer diagnostics are stored under `%LOCALAPPDATA%\TalkToMe\Updates\<version>\install.log`.
+
+If TalkToMe does not return after an update, check that `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TalkToMe` points to the intended installation. Do not install validation packages into an `artifacts` directory under the same Windows user: the stable installer identity will redirect that user's startup and uninstall registration. Reinstall the desired package normally to repair the registration.
+
 ## Local model missing or corrupt
 
 Accept the first-run download prompt, or open **Settings → Transcription**, select **Local Whisper**, and choose **Repair model**. The installer intentionally excludes the large model. Setup is explicit, cancellable, and accepted only when the pinned size and SHA-256 match before placement under `%LOCALAPPDATA%\TalkToMe\Models`.

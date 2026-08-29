@@ -111,12 +111,27 @@ internal sealed class GitHubUpdateService
 
     public static void StartInstaller(string installerPath)
     {
-        Process.Start(new ProcessStartInfo
+        string installDirectory = Path.GetDirectoryName(Environment.ProcessPath)
+            ?? throw new InvalidOperationException("The application directory is unavailable.");
+        string logPath = Path.Combine(
+            Path.GetDirectoryName(installerPath)
+                ?? throw new InvalidOperationException("The update directory is unavailable."),
+            "install.log");
+        _ = Process.Start(new ProcessStartInfo
         {
             FileName = installerPath,
-            Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS",
             UseShellExecute = true,
-        });
+            ArgumentList =
+            {
+                "/VERYSILENT",
+                "/SUPPRESSMSGBOXES",
+                "/NORESTART",
+                "/SP-",
+                "/CLOSEAPPLICATIONS",
+                $"/DIR={installDirectory}",
+                $"/LOG={logPath}",
+            },
+        }) ?? throw new InvalidOperationException("The update installer did not start.");
     }
 
     internal static bool TryParseVersion(string value, out Version? version)

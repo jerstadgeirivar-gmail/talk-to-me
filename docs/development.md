@@ -30,6 +30,8 @@ After the run completes, the workflow uploads the `TalkToMe-Setup-<version>` art
 
 Installed Release builds use the authenticated GitHub CLI to check the release at startup, after Windows resumes, and once per hour. When TalkToMe is idle, it verifies the checksum, runs the installer silently, and restarts minimized. The main window also provides **Check for updates** and displays the running application version. Debug builds never update automatically.
 
+Silent update diagnostics are written to `%LOCALAPPDATA%\TalkToMe\Updates\<version>\install.log`. The updater explicitly installs back into the directory of the running executable, so an isolated validation install cannot redirect a production update.
+
 The resulting installer registers TalkToMe to start with Windows using the `--minimized` option, which keeps the main window hidden in the system tray.
 
 The default global toggle is `Win+<`. The normal flow captures the foreground target on the first press and stops recording on the second. The main window can also start and stop recording when a separate target is not required.
@@ -51,6 +53,8 @@ TALKTOME_WHISPER_MODEL_PATH
 ```
 
 ## Unattended validation
+
+Installer validation must use a separate Windows user or disposable environment. The installer has a stable per-user Inno Setup `AppId`; installing it into an `artifacts` directory under the same user rewrites that user's production uninstall and startup registration.
 
 Record-only scenario:
 

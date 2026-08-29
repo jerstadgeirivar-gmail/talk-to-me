@@ -38,4 +38,4 @@ Name: "{userdesktop}\TalkToMe"; Filename: "{app}\{#MyAppExeName}"; Parameters: "
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "TalkToMe"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--minimized"; Description: "Start TalkToMe in the system tray"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--minimized"; Description: "Start TalkToMe in the system tray"; Flags: nowait postinstall
