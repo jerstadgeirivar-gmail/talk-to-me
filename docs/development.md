@@ -40,6 +40,8 @@ The default global toggle is `Win+<`. The normal flow captures the foreground ta
 
 Open **Settings → Transcription** to select and test a provider. Fresh installations select Local Whisper. Existing installations with complete Azure settings and no saved provider migrate once to Azure. Provider credentials are namespaced current-user DPAPI ciphertext under `%LOCALAPPDATA%\TalkToMe\Secrets`; they are never stored in `settings.json` or displayed after saving. See [configuration](configuration.md).
 
+Open **Settings → Dictation** to select the transcription language mode. The persisted values are `auto`, `norwegian`, and `norwegian-english`; missing, null, or unknown values normalize to `norwegian`. The coordinator applies the selected language to the next normal transcription or retry. Explicit provider readiness contexts remain unchanged.
+
 The small installer includes Whisper.net 1.9.1 and its CPU whisper.cpp runtime, but not the large model. On the first Local Whisper start, TalkToMe detects that the model is absent and asks permission to download and set up the pinned multilingual `small-q5_1` model (190,085,487 bytes; SHA-256 `ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb`). The download has progress and cancellation and is installed atomically only after verification. No Python, CUDA, account, or separate server is needed. The model is kept under `%LOCALAPPDATA%\TalkToMe\Models`; **Repair model** repeats the same verified setup flow.
 
 Development overrides:
@@ -55,6 +57,8 @@ TALKTOME_WHISPER_MODEL_PATH
 ## Unattended validation
 
 Installer validation must use a separate Windows user or disposable environment. The installer has a stable per-user Inno Setup `AppId`; installing it into an `artifacts` directory under the same user rewrites that user's production uninstall and startup registration.
+
+For an intentional local install or upgrade of the current user's production copy, follow `.github/skills/install-talk-to-me/SKILL.md`. Its installer script always terminates all `TalkToMe.App` instances and verifies they are gone before setup starts.
 
 Record-only scenario:
 

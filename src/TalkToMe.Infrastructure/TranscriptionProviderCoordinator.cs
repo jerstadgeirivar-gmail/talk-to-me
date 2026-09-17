@@ -4,6 +4,8 @@ namespace TalkToMe.Infrastructure;
 
 public sealed class TranscriptionProviderCoordinator(ITranscriptionProviderFactory factory, IApplicationSettingsStore settingsStore, string providerId) : ITranscriptionProvider
 {
+    private const string NorwegianEnglishPrompt =
+        "Talen er hovedsakelig norsk, men kan inneholde engelske ord, tekniske begreper, identifikatorer og setninger.";
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ITranscriptionProvider? _provider;
     private string _providerId = providerId;
@@ -39,9 +41,7 @@ public sealed class TranscriptionProviderCoordinator(ITranscriptionProviderFacto
                 _reload = false;
             }
             ApplicationSettings settings = await settingsStore.LoadAsync(cancellationToken);
-            TranscriptionContext effectiveContext = string.IsNullOrWhiteSpace(context.Prompt)
-                ? context with { Prompt = settings.TechnicalVocabulary }
-                : context;
+            TranscriptionContext effectiveContext = CreateEffectiveContext(context, settings);
             return await _provider.TranscribeAsync(audio, effectiveContext, cancellationToken);
         }
         finally { _gate.Release(); }
@@ -53,4 +53,40 @@ public sealed class TranscriptionProviderCoordinator(ITranscriptionProviderFacto
         try { if (_provider is not null) await _provider.DisposeAsync(); }
         finally { _gate.Release(); _gate.Dispose(); }
     }
+
+    private static TranscriptionContext CreateEffectiveContext(
+        TranscriptionContext context,
+        ApplicationSettings settings)
+    {
+        if (!string.IsNullOrWhiteSpace(context.Language))
+        {
+            return string.IsNullOrWhiteSpace(context.Prompt)
+                ? context with { Prompt = NullIfWhiteSpace(settings.TechnicalVocabulary) }
+                : context;
+        }
+
+        string? language = settings.TranscriptionLanguageMode == TranscriptionLanguageModes.Auto
+            ? null
+            : "no";
+        string? languagePrompt = settings.TranscriptionLanguageMode == TranscriptionLanguageModes.NorwegianEnglish
+            ? NorwegianEnglishPrompt
+            : null;
+        return context with
+        {
+            Language = language,
+            Prompt = JoinPrompt(languagePrompt, settings.TechnicalVocabulary),
+        };
+    }
+
+    private static string? JoinPrompt(string? first, string? second)
+    {
+        string? normalizedFirst = NullIfWhiteSpace(first);
+        string? normalizedSecond = NullIfWhiteSpace(second);
+        if (normalizedFirst is null) return normalizedSecond;
+        if (normalizedSecond is null) return normalizedFirst;
+        return $"{normalizedFirst} {normalizedSecond}";
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

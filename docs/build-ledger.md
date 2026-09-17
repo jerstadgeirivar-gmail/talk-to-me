@@ -129,3 +129,15 @@ Packaging result after the download-on-first-run pivot: Release build and 18 tes
 First-run evidence: `artifacts/validation/installed-first-run-model-final/`. Post-setup transcription evidence: `artifacts/validation/installed-first-run-transcription/`.
 
 Known limitation: The first automated Local Whisper insertion reached a real transcript but the existing target activation step failed and left text on the clipboard; transcript-only production journeys pass in Debug and installed Release. First-run setup requires internet access to the pinned Hugging Face URL. No Azure credential/deployment exists locally.
+
+## Slice J: Configurable transcription language
+
+Capability implemented: persisted **Auto**, **Norwegian**, and **Norwegian + English** language modes shared by Local Whisper and Azure. Norwegian modes send the single supported `no` language hint to prevent short Norwegian speech from being misdetected as Swedish or Chinese. The bilingual mode additionally contributes prompt context for English speech and technical terms while preserving user vocabulary. Legacy, null, and unknown settings normalize to Norwegian.
+
+How it was exercised: the real Settings UI journey verified the exact choices, legacy-null normalization, selection, and persisted `norwegian-english` value. The production recording path sent the 24-second Norwegian fixture through Local Whisper with the new default language path. Both journeys were repeated against locally installed self-contained Release 1.0.13 after the installer workflow terminated and verified all existing app processes.
+
+Observed result: Debug and installed Settings journeys passed with unclipped selector UI and protected-storage checks. Debug and installed Local Whisper journeys each produced a 216-character transcript containing four expected semantic anchors. Silent installation left no application process running until validation explicitly launched it.
+
+Evidence: `artifacts/validation/language-settings-final-20260917-102002/`, `artifacts/validation/language-local-whisper-20260917-102014/`, `artifacts/validation/installed-language-settings-20260917-103801/`, `artifacts/validation/installed-language-local-whisper-20260917-103811/`, and `artifacts/validation/language-install-1.0.13-final.log`.
+
+Known limitation: the mixed-language mode is represented by a Norwegian language hint plus prompt context because neither current transcription provider accepts a two-language allowlist. Live Azure validation remains blocked without a configured Azure transcription deployment and credential.

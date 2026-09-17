@@ -16,6 +16,7 @@ public sealed class SettingsWindowViewModel(
     private string _azureEndpoint = string.Empty, _azureDeployment = string.Empty, _azureApiVersion = "2025-04-01-preview";
     private string _lmStudioBaseUrl = "http://localhost:1234", _lmStudioModel = string.Empty;
     private string _ollamaBaseUrl = "http://localhost:11434", _ollamaModel = string.Empty;
+    private string _transcriptionLanguageMode = TranscriptionLanguageModes.Norwegian;
     private string _technicalVocabulary = string.Empty, _hotkey = "Win+<", _targetWindowPolicy = "OriginalTarget", _diagnosticLoggingLevel = "Information";
     private bool _retainFailedAudio, _startWithWindows, _clipboardOnlyMode, _voiceCommandsEnabled, _isBusy;
     private string _azureSecretStatus = "Not configured", _lmStudioSecretStatus = "Not configured", _ollamaSecretStatus = "Not configured";
@@ -23,6 +24,12 @@ public sealed class SettingsWindowViewModel(
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public IReadOnlyList<TranscriptionProviderDescriptor> Providers => providerFactory.Providers;
+    public IReadOnlyList<TranscriptionLanguageOption> TranscriptionLanguages { get; } =
+    [
+        new(TranscriptionLanguageModes.Auto, "Auto"),
+        new(TranscriptionLanguageModes.Norwegian, "Norwegian"),
+        new(TranscriptionLanguageModes.NorwegianEnglish, "Norwegian + English"),
+    ];
     public string SelectedProviderId { get => _selectedProviderId; set { if (SetProperty(ref _selectedProviderId, value)) RaiseProviderProperties(); } }
     public TranscriptionProviderDescriptor? SelectedProvider => Providers.FirstOrDefault(provider => provider.Id == SelectedProviderId);
     public bool IsLocalWhisper => SelectedProviderId == TranscriptionProviderIds.LocalWhisper;
@@ -36,6 +43,7 @@ public sealed class SettingsWindowViewModel(
     public string LmStudioModel { get => _lmStudioModel; set => SetProperty(ref _lmStudioModel, value); }
     public string OllamaBaseUrl { get => _ollamaBaseUrl; set => SetProperty(ref _ollamaBaseUrl, value); }
     public string OllamaModel { get => _ollamaModel; set => SetProperty(ref _ollamaModel, value); }
+    public string TranscriptionLanguageMode { get => _transcriptionLanguageMode; set => SetProperty(ref _transcriptionLanguageMode, value); }
     public string TechnicalVocabulary { get => _technicalVocabulary; set => SetProperty(ref _technicalVocabulary, value); }
     public bool RetainFailedAudio { get => _retainFailedAudio; set => SetProperty(ref _retainFailedAudio, value); }
     public bool StartWithWindows { get => _startWithWindows; set => SetProperty(ref _startWithWindows, value); }
@@ -65,6 +73,7 @@ public sealed class SettingsWindowViewModel(
         AzureEndpoint = settings.AzureEndpoint; AzureDeployment = settings.AzureDeployment; AzureApiVersion = settings.AzureApiVersion;
         LmStudioBaseUrl = settings.LmStudioBaseUrl; LmStudioModel = settings.LmStudioModel;
         OllamaBaseUrl = settings.OllamaBaseUrl; OllamaModel = settings.OllamaModel;
+        TranscriptionLanguageMode = settings.TranscriptionLanguageMode;
         TechnicalVocabulary = settings.TechnicalVocabulary; RetainFailedAudio = settings.RetainFailedAudio;
         StartWithWindows = settings.StartWithWindows; ClipboardOnlyMode = settings.ClipboardOnlyMode;
         TargetWindowPolicy = settings.TargetWindowPolicy; Hotkey = settings.Hotkey;
@@ -139,6 +148,7 @@ public sealed class SettingsWindowViewModel(
         LmStudioModel = LmStudioModel.Trim(),
         OllamaBaseUrl = OllamaBaseUrl.Trim(),
         OllamaModel = OllamaModel.Trim(),
+        TranscriptionLanguageMode = TranscriptionLanguageMode,
         TechnicalVocabulary = TechnicalVocabulary,
         RetainFailedAudio = RetainFailedAudio,
         StartWithWindows = StartWithWindows,
@@ -158,6 +168,7 @@ public sealed class SettingsWindowViewModel(
     private bool Validate()
     {
         if (!HotkeyGesture.TryParse(Hotkey, out _)) { StatusText = "Enter a valid hotkey such as Win+< or Ctrl+Alt+F9."; return false; }
+        if (!TranscriptionLanguageModes.IsValid(TranscriptionLanguageMode)) { StatusText = "Select a valid transcription language."; return false; }
         return ValidateProvider();
     }
 
@@ -187,4 +198,9 @@ public sealed class SettingsWindowViewModel(
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? name = null)
     { if (EqualityComparer<T>.Default.Equals(field, value)) return false; field = value; OnPropertyChanged(name); return true; }
     private void OnPropertyChanged(string? name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+public sealed record TranscriptionLanguageOption(string Id, string DisplayName)
+{
+    public override string ToString() => DisplayName;
 }

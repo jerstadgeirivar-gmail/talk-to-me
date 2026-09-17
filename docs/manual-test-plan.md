@@ -8,6 +8,8 @@
 4. Confirm recording/model loading/transcription remain responsive and the transcript is non-empty and semantically accurate.
 5. Insert and verify Unicode, punctuation, multiline text, and that Enter was not added.
 6. Restart and confirm Local Whisper remains selected. Switch providers, save, and confirm the next transcription uses exactly that provider without fallback.
+7. In **Settings → Dictation**, verify the language choices are exactly **Auto**, **Norwegian**, and **Norwegian + English**. Save and reopen each choice, then inspect isolated `settings.json` for the corresponding stable value.
+8. Transcribe short Norwegian speech under **Norwegian** and mixed Norwegian/English technical speech under **Norwegian + English**. Confirm the former is not rendered as Swedish or Chinese and the latter preserves meaningful English terms. Exercise **Auto** as the explicit detection option.
 
 Use `_init/norwegian-audio-speech-test.mp3` for repeatable automation through the production recording and adapter paths. For each claimed provider record executable/service, version, endpoint, model, observed transcript, latency, screenshot, and insertion result.
 
@@ -22,6 +24,7 @@ Test Notepad, Visual Studio Code, a Chromium browser text area, Windows Terminal
 - Local model missing/wrong size/wrong checksum, repair cancellation, low memory, and unsupported native runtime
 - LM Studio stopped/running and Ollama stopped/running; verify both report lack of documented speech-to-text and never send audio
 - Unknown saved provider ID and incomplete explicitly selected Azure; verify no automatic Local fallback
+- Missing, null, and unknown transcription language modes; verify they normalize to Norwegian
 - Target closed or elevated before insertion
 - Clipboard held open by another process
 - Repeated hotkey press and second app launch

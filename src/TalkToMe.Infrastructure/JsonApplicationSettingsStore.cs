@@ -60,6 +60,9 @@ public sealed partial class JsonApplicationSettingsStore(string? settingsFile = 
         // null strings to application code that correctly relies on this schema.
         return settings with
         {
+            TranscriptionLanguageMode = TranscriptionLanguageModes.IsValid(settings.TranscriptionLanguageMode)
+                ? settings.TranscriptionLanguageMode
+                : defaults.TranscriptionLanguageMode,
             LocalWhisperModel = settings.LocalWhisperModel ?? defaults.LocalWhisperModel,
             AzureEndpoint = settings.AzureEndpoint ?? defaults.AzureEndpoint,
             AzureDeployment = settings.AzureDeployment ?? defaults.AzureDeployment,

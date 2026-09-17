@@ -77,7 +77,12 @@
             </TabItem>
             <TabItem Header="Dictation" AutomationProperties.AutomationId="DictationTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="16">
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Technical vocabulary and context"/><TextBox Height="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="{Binding TechnicalVocabulary}" AutomationProperties.AutomationId="VocabularyTextBox"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Transcription language"/>
+                    <ComboBox Margin="0,6,0,4" ItemsSource="{Binding TranscriptionLanguages}" DisplayMemberPath="DisplayName"
+                              SelectedValuePath="Id" SelectedValue="{Binding TranscriptionLanguageMode}"
+                              AutomationProperties.AutomationId="TranscriptionLanguageSelector" AutomationProperties.Name="Transcription language"/>
+                    <TextBlock Foreground="{StaticResource MutedTextBrush}" Text="Norwegian prevents incorrect Swedish or Chinese detection. Norwegian + English also hints that English words and sentences may occur." TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,14,0,5" Style="{StaticResource FieldLabel}" Text="Technical vocabulary and context"/><TextBox Height="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="{Binding TechnicalVocabulary}" AutomationProperties.AutomationId="VocabularyTextBox"/>
                     <TextBlock Margin="0,14,0,5" Style="{StaticResource FieldLabel}" Text="Global hotkey"/><TextBox Text="{Binding Hotkey}" AutomationProperties.AutomationId="HotkeyTextBox"/>
                     <CheckBox Margin="0,16,0,0" Content="Enable “computer” voice command" IsChecked="{Binding VoiceCommandsEnabled}" AutomationProperties.AutomationId="VoiceCommandsEnabledCheckBox"/>
                     <CheckBox Margin="0,12,0,0" Content="Keep audio after failed transcription" IsChecked="{Binding RetainFailedAudio}" AutomationProperties.AutomationId="RetainFailedAudioCheckBox"/>

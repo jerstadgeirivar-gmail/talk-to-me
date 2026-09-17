@@ -4,6 +4,8 @@ public sealed record ApplicationSettings
 {
     public string? TranscriptionProviderId { get; init; }
 
+    public string TranscriptionLanguageMode { get; init; } = TranscriptionLanguageModes.Norwegian;
+
     public string LocalWhisperModel { get; init; } = "small-q5_1";
 
     public string AzureEndpoint { get; init; } = string.Empty;
@@ -35,4 +37,13 @@ public sealed record ApplicationSettings
     public bool? VoiceCommandsEnabled { get; init; }
 
     public string DiagnosticLoggingLevel { get; init; } = "Information";
+}
+
+public static class TranscriptionLanguageModes
+{
+    public const string Auto = "auto";
+    public const string Norwegian = "norwegian";
+    public const string NorwegianEnglish = "norwegian-english";
+
+    public static bool IsValid(string? value) => value is Auto or Norwegian or NorwegianEnglish;
 }

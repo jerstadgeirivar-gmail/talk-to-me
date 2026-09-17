@@ -1,5 +1,10 @@
 # Repository validation requirements
 
+## Primary operational skill
+
+- Use `.github/skills/install-talk-to-me/SKILL.md` whenever installing, reinstalling, upgrading, or locally deploying TalkToMe.
+- The installer workflow must terminate every running `TalkToMe.App` process and verify none remain before launching the installer.
+
 Live application validation is a mandatory part of the definition of done.
 
 - For every change that can affect runtime behavior, UI behavior, installation, packaging, updates, operating-system integration, audio handling, transcription, clipboard handling, or persisted settings, run the affected journey against the real built application.

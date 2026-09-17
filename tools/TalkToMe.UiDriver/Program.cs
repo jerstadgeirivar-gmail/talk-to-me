@@ -438,6 +438,7 @@ static void PrepareLegacyNullSettings(string evidenceDirectory)
         """
         {
           "TranscriptionProviderId": "azure-openai",
+          "TranscriptionLanguageMode": null,
           "LocalWhisperModel": null,
           "AzureEndpoint": "https://example.openai.azure.com",
           "AzureDeployment": "speech-deployment",
@@ -521,6 +522,24 @@ static void RunSettingsScenario(
     AssertSettingsFitsWithoutScrolling(settingsWindow);
 
     FindByAutomationId(settingsWindow, "ProviderSelector").AsComboBox().Select("Azure OpenAI");
+    FindByAutomationId(settingsWindow, "DictationTab").Patterns.SelectionItem.Pattern.Select();
+    ComboBox language = FindByAutomationId(settingsWindow, "TranscriptionLanguageSelector").AsComboBox();
+    string[] languageChoices = language.Items.Select(item => item.Name).ToArray();
+    string[] expectedLanguageChoices = ["Auto", "Norwegian", "Norwegian + English"];
+    if (!languageChoices.SequenceEqual(expectedLanguageChoices, StringComparer.Ordinal))
+    {
+        throw new InvalidOperationException(
+            $"Unexpected transcription language choices: {string.Join(", ", languageChoices)}.");
+    }
+    if (language.SelectedItem?.Name != "Norwegian")
+    {
+        throw new InvalidOperationException("Legacy settings did not normalize to Norwegian.");
+    }
+    language.Select("Auto");
+    language.Select("Norwegian");
+    language.Select("Norwegian + English");
+    CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "language-settings-window.png"));
+    FindByAutomationId(settingsWindow, "TranscriptionTab").Patterns.SelectionItem.Pattern.Select();
     AutomationElement endpoint = FindByAutomationId(settingsWindow, "AzureEndpointTextBox");
     AutomationElement deployment = FindByAutomationId(settingsWindow, "AzureDeploymentTextBox");
     AutomationElement apiVersion = FindByAutomationId(settingsWindow, "AzureApiVersionTextBox");
@@ -561,6 +580,10 @@ static void RunSettingsScenario(
     }
 
     string savedSettings = File.ReadAllText(settingsPath);
+    if (!savedSettings.Contains("\"TranscriptionLanguageMode\":\"norwegian-english\"", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("The selected transcription language was not persisted.");
+    }
     string[] normalizedProperties =
     [
         "LocalWhisperModel",
@@ -599,6 +622,8 @@ static void RunSettingsScenario(
         "DefaultSettingsFitsWithoutScrolling: True" + Environment.NewLine +
         "InvalidHttpsRejected: True" + Environment.NewLine +
         "LegacyNullSettingsNormalized: True" + Environment.NewLine +
+        "LanguageChoices: Auto, Norwegian, Norwegian + English" + Environment.NewLine +
+        "LanguageSelectionPersisted: norwegian-english" + Environment.NewLine +
         "ProviderButtonPerformedRealRequest: True" + Environment.NewLine +
         "ProviderStatusReacted: True" + Environment.NewLine +
         "ProtectedCredentialCreated: True" + Environment.NewLine +
@@ -919,7 +944,9 @@ static Window WaitForWindow(
     while (stopwatch.Elapsed < timeout)
     {
         Window? window = application.GetAllTopLevelWindows(automation)
-            .SingleOrDefault(candidate => candidate.AutomationId == automationId);
+            .SingleOrDefault(candidate =>
+                candidate.Properties.AutomationId.TryGetValue(out string? candidateAutomationId) &&
+                candidateAutomationId == automationId);
         if (window is not null && window.Properties.ProcessId.Value == application.ProcessId)
         {
             return window;

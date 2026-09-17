@@ -8,6 +8,18 @@
 
 There is no automatic fallback. Saving Settings changes the coordinator for the next transcription and waits if one is active.
 
+## Transcription language
+
+**Settings → Dictation → Transcription language** controls the hint sent with normal dictation and retries:
+
+| Choice | Provider language | Additional context |
+| --- | --- | --- |
+| Auto | Automatic detection | None |
+| Norwegian | `no` | None |
+| Norwegian + English | `no` | Speech is primarily Norwegian but may contain English words, technical terms, identifiers, and sentences |
+
+Norwegian is the default, including for settings created by earlier versions. It avoids short Norwegian dictation being misdetected as Swedish, Chinese, or another language. Current Local Whisper and Azure transcription APIs accept only one language hint, not a language allowlist; therefore **Norwegian + English** keeps the Norwegian hint and supplies bilingual context through the prompt. Technical vocabulary entered by the user is appended to that context rather than replaced.
+
 ## Providers and privacy
 
 | Provider | Required configuration | Audio destination |

@@ -40,6 +40,8 @@ You can also open TalkToMe from its system-tray icon and use the on-screen recor
 
 The shortcut can be changed under **Settings → Dictation preferences**.
 
+The same page lets you choose **Auto**, **Norwegian**, or **Norwegian + English** for transcription. **Norwegian** pins language detection to Norwegian to avoid short speech being mistaken for Swedish or Chinese. **Norwegian + English** keeps that Norwegian constraint and adds context for English words, technical terms, identifiers, and sentences.
+
 ## Voice command
 
 TalkToMe can listen locally for the English keyword **computer**:
