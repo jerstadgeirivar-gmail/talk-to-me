@@ -616,6 +616,34 @@ static void RunSettingsScenario(
     Thread.Sleep(250);
     WriteAutomationTree(settingsWindow, Path.Combine(evidenceDirectory, "settings-uia-tree.txt"));
     CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "settings-window.png"));
+    settingsWindow.Close();
+    if (!invokeTask.Wait(TimeSpan.FromSeconds(5)))
+    {
+        throw new TimeoutException("Settings dialog invocation did not complete after close.");
+    }
+
+    Task reopenInvokeTask = Task.Run(() => settingsButton.AsButton().Invoke());
+    Window reopenedSettingsWindow = WaitForDescendantWindow(
+        mainWindow,
+        "SettingsWindow",
+        TimeSpan.FromSeconds(10));
+    FindByAutomationId(reopenedSettingsWindow, "DictationTab").Patterns.SelectionItem.Pattern.Select();
+    ComboBox reopenedLanguage = FindByAutomationId(
+        reopenedSettingsWindow,
+        "TranscriptionLanguageSelector").AsComboBox();
+    if (reopenedLanguage.SelectedItem?.Name != "Norwegian + English")
+    {
+        throw new InvalidOperationException("The saved transcription language was not restored after reopening Settings.");
+    }
+
+    WriteAutomationTree(reopenedSettingsWindow, Path.Combine(evidenceDirectory, "settings-reopened-uia-tree.txt"));
+    CaptureWindow(reopenedSettingsWindow, Path.Combine(evidenceDirectory, "language-settings-reopened.png"));
+    reopenedSettingsWindow.Close();
+    if (!reopenInvokeTask.Wait(TimeSpan.FromSeconds(5)))
+    {
+        throw new TimeoutException("Settings dialog invocation did not complete after reopening.");
+    }
+
     File.WriteAllText(
         Path.Combine(evidenceDirectory, "result.txt"),
         $"ProcessId: {application.ProcessId}{Environment.NewLine}" +
@@ -624,17 +652,13 @@ static void RunSettingsScenario(
         "LegacyNullSettingsNormalized: True" + Environment.NewLine +
         "LanguageChoices: Auto, Norwegian, Norwegian + English" + Environment.NewLine +
         "LanguageSelectionPersisted: norwegian-english" + Environment.NewLine +
+        "LanguageSelectionReopened: norwegian-english" + Environment.NewLine +
         "ProviderButtonPerformedRealRequest: True" + Environment.NewLine +
         "ProviderStatusReacted: True" + Environment.NewLine +
         "ProtectedCredentialCreated: True" + Environment.NewLine +
         "PlaintextAbsent: True" + Environment.NewLine +
         "CredentialRemoved: True" + Environment.NewLine +
         "Result: PASS" + Environment.NewLine);
-    settingsWindow.Close();
-    if (!invokeTask.Wait(TimeSpan.FromSeconds(5)))
-    {
-        throw new TimeoutException("Settings dialog invocation did not complete after close.");
-    }
 }
 
 static void RunCapabilitiesScenario(

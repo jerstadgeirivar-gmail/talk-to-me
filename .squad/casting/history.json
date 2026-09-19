@@ -1,0 +1,8 @@
+{
+  "universe_usage_history": [
+    {"universe": "descriptive", "assignment_id": "descriptive-2026-09-17T15:58:13.3409280+02:00", "created_at": "2026-09-17T15:58:13.3409280+02:00"}
+  ],
+  "assignment_cast_snapshots": {
+    "descriptive-2026-09-17T15:58:13.3409280+02:00": ["Lead", "UI", "Platform", "Tester", "Release", "Scribe", "Ralph", "Rai", "Fact Checker"]
+  }
+}

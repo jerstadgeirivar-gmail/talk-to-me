@@ -38,4 +38,25 @@ Name: "{userdesktop}\TalkToMe"; Filename: "{app}\{#MyAppExeName}"; Parameters: "
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "TalkToMe"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--minimized"; Description: "Start TalkToMe in the system tray"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--minimized"; Description: "Start TalkToMe in the system tray"; Flags: nowait postinstall; Check: ShouldStartApplication
+
+[Code]
+function HasCommandLineParameter(const Parameter: String): Boolean;
+var
+  Index: Integer;
+begin
+  Result := False;
+  for Index := 1 to ParamCount do
+  begin
+    if CompareText(ParamStr(Index), Parameter) = 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+function ShouldStartApplication(): Boolean;
+begin
+  Result := (not WizardSilent) or HasCommandLineParameter('/TALKTOMERESTART');
+end;

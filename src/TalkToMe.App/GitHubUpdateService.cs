@@ -21,7 +21,7 @@ internal sealed class GitHubUpdateService
     {
         ProcessResult result = await RunGitHubCliAsync(
             ["release", "view", "--repo", Repository, "--json", "tagName,assets"],
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
         if (!result.Succeeded)
         {
             return new UpdateAvailability(
@@ -85,7 +85,7 @@ internal sealed class GitHubUpdateService
                 "--dir", directory,
                 "--clobber",
             ],
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
         if (!download.Succeeded)
         {
             throw new InvalidOperationException("The update could not be downloaded.");
@@ -93,13 +93,15 @@ internal sealed class GitHubUpdateService
 
         string installerPath = Path.Combine(directory, InstallerAssetName);
         string checksumPath = Path.Combine(directory, update.ChecksumAssetName);
-        string checksumText = await File.ReadAllTextAsync(checksumPath, cancellationToken);
+        string checksumText = await File.ReadAllTextAsync(checksumPath, cancellationToken)
+            .ConfigureAwait(false);
         string expectedHash = checksumText
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault() ?? string.Empty;
         await using FileStream installerStream = File.OpenRead(installerPath);
         string actualHash = Convert.ToHexString(
-            await SHA256.HashDataAsync(installerStream, cancellationToken));
+            await SHA256.HashDataAsync(installerStream, cancellationToken)
+                .ConfigureAwait(false));
         if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
         {
             File.Delete(installerPath);
@@ -128,6 +130,7 @@ internal sealed class GitHubUpdateService
                 "/NORESTART",
                 "/SP-",
                 "/CLOSEAPPLICATIONS",
+                "/TALKTOMERESTART",
                 $"/DIR={installDirectory}",
                 $"/LOG={logPath}",
             },
@@ -162,22 +165,46 @@ internal sealed class GitHubUpdateService
             startInfo.ArgumentList.Add(argument);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        Process process;
         try
         {
-            using Process process = Process.Start(startInfo)
+            process = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("GitHub CLI did not start.");
-            Task<string> outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-            return new ProcessResult(
-                process.ExitCode == 0,
-                await outputTask,
-                await errorTask,
-                false);
         }
         catch (Win32Exception)
         {
             return new ProcessResult(false, string.Empty, string.Empty, true);
+        }
+
+        using (process)
+        {
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+            Task<string> errorTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (InvalidOperationException) when (process.HasExited)
+                {
+                }
+
+                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                await Task.WhenAll(outputTask, errorTask).ConfigureAwait(false);
+                throw;
+            }
+
+            return new ProcessResult(
+                process.ExitCode == 0,
+                await outputTask.ConfigureAwait(false),
+                await errorTask.ConfigureAwait(false),
+                false);
         }
     }
 

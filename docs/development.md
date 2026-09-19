@@ -80,6 +80,23 @@ dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build
 
 See [manual-test-plan.md](manual-test-plan.md) and [troubleshooting.md](troubleshooting.md).
 
+## Packaged validation record
+
+The 2026-09-17 packaged validation used version `1.0.14`:
+
+```powershell
+$env:DOTNET_ROOT = 'C:\Users\Garg\.dotnet'
+$env:PATH = "$env:DOTNET_ROOT;$env:PATH"
+dotnet build .\TalkToMe.sln -c Release /p:Version=1.0.14
+dotnet publish .\src\TalkToMe.App\TalkToMe.App.csproj -c Release -r win-x64 --self-contained true -o .\artifacts\publish\win-x64 /p:Version=1.0.14
+& 'C:\Users\Garg\AppData\Local\Programs\Antigravity IDE\resources\app\node_modules\innosetup\bin\ISCC.exe' /Q /DMyAppVersion=1.0.14 .\packaging\TalkToMe.iss
+& .\.github\skills\install-talk-to-me\scripts\install-local.ps1 -InstallerPath .\artifacts\installer\TalkToMe-Setup.exe -ExpectedVersion 1.0.14 -LogPath .\artifacts\validation\install-1.0.14.log
+```
+
+The Release build and 30 tests passed. The installer compiled successfully with SHA-256 `98195170EE451962F37C516D7FA0E8C307E1B13AEF2E2553BFDC6ACB6E6592EC`, and installed `C:\Users\Garg\AppData\Local\Programs\TalkToMe\TalkToMe.App.exe` with file version `1.0.14.0`. Live installed-app evidence is retained in `artifacts\validation\installed-20260917-settings`, `installed-20260917-record-only`, `installed-20260917-privacy-transcription-failure`, and `installed-20260917-privacy-failure`; the installer log and checksum are `artifacts\validation\install-1.0.14.log` and `artifacts\installer\TalkToMe-Setup.exe.sha256`.
+
+The automatic-update restart journey remains blocked because the fixed `1.0.14` package is not published and no existing updater harness can provide a valid release source containing these changes. Update-cancellation remains untested for the same reason; the installed-app journeys confirmed that no `gh.exe` process remained after each driver run.
+
 ## Limitations
 
 - A normal-integrity process cannot inject input into an elevated target because of Windows UIPI.
