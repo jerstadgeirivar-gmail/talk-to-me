@@ -9,6 +9,7 @@ public sealed record AzureTranscriptionOptions(
     string ApiVersion,
     TimeSpan Timeout)
 {
+    public const long PreparationThresholdBytes = 24 * 1024 * 1024;
     public const long MaximumAudioBytes = 25 * 1024 * 1024;
 
     public static AzureTranscriptionOptions? FromEnvironment()

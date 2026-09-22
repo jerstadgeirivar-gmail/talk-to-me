@@ -1,5 +1,7 @@
 # Repository validation requirements
 
+**Response language:** Always respond in English, even when the user writes in another language. Keep technical terminology in English.
+
 ## Primary operational skill
 
 - Use `.github/skills/install-talk-to-me/SKILL.md` whenever installing, reinstalling, upgrading, or locally deploying TalkToMe.

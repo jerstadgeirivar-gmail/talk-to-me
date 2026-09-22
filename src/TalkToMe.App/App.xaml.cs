@@ -53,7 +53,10 @@ public partial class App : System.Windows.Application, IDisposable
         ApplicationSettings settings = await settingsStore.LoadAsync(CancellationToken.None);
         IAudioSource audioSource = options.DiagnosticAudioPath is null
             ? new WasapiMicrophoneAudioSource()
-            : new FileBackedAudioSource(options.DiagnosticAudioPath, options.DiagnosticSpeed);
+            : new FileBackedAudioSource(
+                options.DiagnosticAudioPath,
+                options.DiagnosticSpeed,
+                options.DiagnosticNoDelay);
         TranscriptionProviderRegistry providerRegistry = new(settingsStore, secretStore);
         bool hasAzureSecret = await secretStore.HasSecretAsync(TranscriptionProviderIds.AzureOpenAi, CancellationToken.None);
         string selectedProviderId = providerRegistry.SelectProviderId(settings, hasAzureSecret);

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using TalkToMe.Core;
 using Whisper.net;
+using Whisper.net.LibraryLoader;
 
 namespace TalkToMe.Infrastructure;
 
@@ -12,11 +13,20 @@ public sealed class LocalWhisperTranscriptionProvider : ITranscriptionProvider
 
     public LocalWhisperTranscriptionProvider(string modelPath)
     {
-        try { _factory = WhisperFactory.FromPath(modelPath); }
+        try
+        {
+            _factory = WhisperFactory.FromPath(
+                modelPath,
+                new WhisperFactoryOptions
+                {
+                    UseGpu = true,
+                    GpuDevice = 0,
+                });
+        }
         catch (Exception exception) when (exception is not TranscriptionException)
         {
             throw new TranscriptionException(TranscriptionFailureCategory.RuntimeUnavailable,
-                "The local Whisper runtime or model could not be loaded. Repair the model and verify CPU compatibility.", innerException: exception);
+                "The local Whisper runtime or model could not be loaded. Verify the CUDA runtime or repair the model.", innerException: exception);
         }
     }
 
@@ -27,6 +37,7 @@ public sealed class LocalWhisperTranscriptionProvider : ITranscriptionProvider
         Stopwatch stopwatch = Stopwatch.StartNew();
         try
         {
+            context.Progress?.Report($"Local Whisper backend: {RuntimeOptions.LoadedLibrary}");
             WhisperProcessorBuilder builder = _factory.CreateBuilder().WithLanguage(string.IsNullOrWhiteSpace(context.Language) ? "auto" : context.Language);
             if (!string.IsNullOrWhiteSpace(context.Prompt)) builder.WithPrompt(context.Prompt);
             using WhisperProcessor processor = builder.Build();

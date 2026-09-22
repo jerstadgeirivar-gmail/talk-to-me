@@ -508,9 +508,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
 
     private async Task TranscribeRecordingAsync(RecordingResult recording)
     {
+        Progress<string> progress = new(message => StatusText = message);
         TranscriptionResult transcription = await _transcriptionProvider!.TranscribeAsync(
             new RecordedAudio(recording.FilePath, recording.Duration, recording.FileSizeBytes),
-            new TranscriptionContext(null, null),
+            new TranscriptionContext(null, null, progress),
             _lifetimeCancellation.Token);
         TranscriptText = transcription.Text;
         DeleteLastRecording();

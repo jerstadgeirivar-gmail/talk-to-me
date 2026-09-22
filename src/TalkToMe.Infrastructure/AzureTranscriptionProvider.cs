@@ -29,12 +29,20 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
         CancellationToken cancellationToken)
     {
         ValidateAudio(audio);
+        context.Progress?.Report("Preparing audio");
+        using PreparedAzureAudio preparedAudio = await AzureAudioUploadPreparer.PrepareAsync(
+            audio,
+            context.Progress,
+            cancellationToken);
+        ValidatePreparedAudio(preparedAudio);
+
+        context.Progress?.Report("Sending audio");
         Uri requestUri = BuildRequestUri();
         using MultipartFormDataContent content = new();
-        await using FileStream audioStream = File.OpenRead(audio.FilePath);
+        await using FileStream audioStream = File.OpenRead(preparedAudio.FilePath);
         using StreamContent fileContent = new(audioStream);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
-        content.Add(fileContent, "file", Path.GetFileName(audio.FilePath));
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(preparedAudio.ContentType);
+        content.Add(fileContent, "file", preparedAudio.FileName);
         content.Add(new StringContent(_options.Deployment), "model");
         content.Add(new StringContent("json"), "response_format");
         if (!string.IsNullOrWhiteSpace(context.Language))
@@ -60,6 +68,7 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeoutCancellation.Token);
+            context.Progress?.Report("Waiting for transcription");
             stopwatch.Stop();
             string? requestId = GetRequestId(response);
             if (!response.IsSuccessStatusCode)
@@ -122,11 +131,15 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
             throw new FileNotFoundException("Recorded audio was not found.", audio.FilePath);
         }
 
+    }
+
+    private static void ValidatePreparedAudio(PreparedAzureAudio audio)
+    {
         if (audio.FileSizeBytes > AzureTranscriptionOptions.MaximumAudioBytes)
         {
             throw new TranscriptionException(
                 TranscriptionFailureCategory.RequestTooLarge,
-                "The recording exceeds Azure's 25 MB request limit.");
+                "The prepared recording exceeds Azure's 25 MB request limit.");
         }
     }
 

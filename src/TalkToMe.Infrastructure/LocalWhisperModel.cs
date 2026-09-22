@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using TalkToMe.Core;
+using Whisper.net;
+using Whisper.net.LibraryLoader;
 
 namespace TalkToMe.Infrastructure;
 
@@ -34,9 +36,30 @@ public static class LocalWhisperModel
         await using FileStream stream = File.OpenRead(path);
         byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken);
         string actual = Convert.ToHexStringLower(hash);
-        return actual == Sha256
-            ? new(ProviderReadiness.Ready, $"Ready offline — {DisplayName}, CPU")
-            : new(ProviderReadiness.ModelCorrupt, "Local model checksum is invalid. Use Repair model.");
+        if (actual != Sha256)
+        {
+            return new(ProviderReadiness.ModelCorrupt, "Local model checksum is invalid. Use Repair model.");
+        }
+
+        try
+        {
+            using WhisperFactory factory = WhisperFactory.FromPath(
+                path,
+                new WhisperFactoryOptions
+                {
+                    UseGpu = true,
+                    GpuDevice = 0,
+                });
+            return new(
+                ProviderReadiness.Ready,
+                $"Ready offline — {DisplayName}, backend: {RuntimeOptions.LoadedLibrary}");
+        }
+        catch (Exception exception)
+        {
+            return new(
+                ProviderReadiness.Unavailable,
+                $"Local Whisper model is valid, but the runtime could not be loaded: {exception.Message}");
+        }
     }
 
     public static async Task RepairAsync(IProgress<double>? progress, CancellationToken cancellationToken)

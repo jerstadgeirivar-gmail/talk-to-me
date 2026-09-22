@@ -17,6 +17,7 @@
     <PackageReference Include="System.Speech" Version="10.0.10" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Cuda12" Version="1.9.1" />
   </ItemGroup>
 
 </Project>

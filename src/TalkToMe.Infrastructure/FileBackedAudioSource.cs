@@ -5,7 +5,10 @@ using TalkToMe.Core;
 
 namespace TalkToMe.Infrastructure;
 
-public sealed class FileBackedAudioSource(string filePath, double playbackSpeed = 1) : IAudioSource
+public sealed class FileBackedAudioSource(
+    string filePath,
+    double playbackSpeed = 1,
+    bool noDelay = false) : IAudioSource
 {
     private const int FrameDurationMilliseconds = 100;
 
@@ -43,7 +46,14 @@ public sealed class FileBackedAudioSource(string filePath, double playbackSpeed 
 
             TimeSpan frameDuration = TimeSpan.FromSeconds((double)bytesRead / Format.BytesPerSecond);
             position += frameDuration;
-            await Task.Delay(frameDuration / _playbackSpeed, cancellationToken);
+            if (!noDelay)
+            {
+                await Task.Delay(frameDuration / _playbackSpeed, cancellationToken);
+            }
+            else
+            {
+                await Task.Yield();
+            }
         }
     }
 

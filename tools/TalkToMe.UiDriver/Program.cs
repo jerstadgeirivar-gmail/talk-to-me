@@ -41,10 +41,11 @@ bool capabilitiesScenario = args.Length == 3 && args[1] == "--capabilities";
 bool firstRunModelScenario = args.Length == 3 && args[1] == "--first-run-model";
 bool liveProviderScenario = args.Length == 3 && args[1] == "--live-provider";
 bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
+bool liveOversizedScenario = args.Length == 4 && args[3] == "--live-oversized";
 bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
 bool privacyFailureScenario = args.Length == 5 && args[3] == "--privacy-failure";
 bool privacyTranscriptionFailureScenario = args.Length == 4 && args[3] == "--privacy-transcription-failure";
-if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveLocalScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 5)
+if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveAzureScenario && !liveOversizedScenario && !liveLocalScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 4 and not 5)
 {
     Console.Error.WriteLine(
         "Usage: TalkToMe.UiDriver <application-path> <audio-fixture-path> <evidence-directory> [diagnostic-transcript|--live target-application-path]");
@@ -56,10 +57,10 @@ string? audioFixturePath = (settingsScenario || capabilitiesScenario || firstRun
 string evidenceDirectory = Path.GetFullPath(args[2]);
 string? expectedTranscript = privacyFailureScenario
     ? privacyTranscript
-    : !settingsScenario && !liveAzureScenario && args.Length == 5 ? args[3] : null;
+    : !settingsScenario && !liveAzureScenario && !liveOversizedScenario && args.Length == 5 ? args[3] : null;
 string? targetApplicationPath = args.Length == 5 ? Path.GetFullPath(args[4]) : null;
 bool insertionScenario = expectedTranscript is not null || liveAzureScenario || privacyFailureScenario;
-bool transcriptionScenario = insertionScenario || liveLocalScenario;
+bool transcriptionScenario = insertionScenario || liveOversizedScenario || liveLocalScenario;
 Directory.CreateDirectory(evidenceDirectory);
 if (settingsScenario)
 {
@@ -106,9 +107,13 @@ try
         startInfo.ArgumentList.Add("--diagnostic-output");
         startInfo.ArgumentList.Add(recordingPath);
         startInfo.ArgumentList.Add("--diagnostic-speed");
-        startInfo.ArgumentList.Add("2");
+        startInfo.ArgumentList.Add(liveOversizedScenario ? "100" : "2");
+        if (liveOversizedScenario)
+        {
+            startInfo.ArgumentList.Add("--diagnostic-no-delay");
+        }
     }
-    if (liveAzureScenario || liveLocalScenario || privacyTranscriptionFailureScenario)
+    if (liveAzureScenario || liveOversizedScenario || liveLocalScenario || privacyTranscriptionFailureScenario)
     {
         startInfo.ArgumentList.Add("--diagnostic-live-provider");
     }
@@ -186,11 +191,20 @@ try
     }
 
     WaitForElementName(window, statusAutomationId, recordingStatus, TimeSpan.FromSeconds(5));
-    AutomationElement duration = WaitForDuration(
-        window,
-        durationAutomationId,
-        (liveAzureScenario || liveLocalScenario) ? TimeSpan.FromSeconds(24) : TimeSpan.FromSeconds(2),
-        (liveAzureScenario || liveLocalScenario) ? TimeSpan.FromSeconds(30) : TimeSpan.FromSeconds(10));
+    AutomationElement duration;
+    if (liveOversizedScenario)
+    {
+        WaitForRecordedFileSize(recordingPath, AzureTranscriptionOptions.PreparationThresholdBytes, TimeSpan.FromSeconds(30));
+        duration = FindByAutomationId(window, durationAutomationId);
+    }
+    else
+    {
+        duration = WaitForDuration(
+            window,
+            durationAutomationId,
+            (liveAzureScenario || liveLocalScenario) ? TimeSpan.FromSeconds(24) : TimeSpan.FromSeconds(2),
+            (liveAzureScenario || liveLocalScenario) ? TimeSpan.FromSeconds(30) : TimeSpan.FromSeconds(10));
+    }
     AutomationElement stopButton = window.FindFirstDescendant(
         condition => condition.ByAutomationId(stopButtonAutomationId))
         ?? throw new InvalidOperationException($"Button '{stopButtonAutomationId}' was not found.");
@@ -214,6 +228,7 @@ try
 
     string expectedStatus = privacyFailureScenario
         ? "The target window could not be activated. The previous clipboard contents were restored."
+        : liveOversizedScenario ? "Transcript ready — copy it or use the shortcut from another app to insert"
         : insertionScenario ? insertionCompleteStatus
         : liveLocalScenario ? "Transcript ready — copy it or use the shortcut from another app to insert"
         : recordOnlyStatus;
@@ -256,7 +271,7 @@ try
         {
             throw new InvalidOperationException("The transcript displayed by the app did not match the diagnostic provider result.");
         }
-        if (liveAzureScenario || liveLocalScenario)
+        if ((liveAzureScenario || liveLocalScenario) && !liveOversizedScenario)
         {
             semanticAnchorCount = CountSemanticAnchors(displayedTranscript);
             if (semanticAnchorCount < 2)
@@ -318,7 +333,7 @@ try
         $"Status: {status.Name}{Environment.NewLine}" +
         $"Duration: {duration.Name}{Environment.NewLine}" +
         $"RecordingBytes: {recordingBytes}{Environment.NewLine}" +
-        $"LiveAzure: {liveAzureScenario}{Environment.NewLine}" +
+        $"LiveAzure: {liveAzureScenario || liveOversizedScenario}{Environment.NewLine}" +
         $"LiveLocal: {liveLocalScenario}{Environment.NewLine}" +
         $"PrivacyFailure: {privacyFailureScenario}{Environment.NewLine}" +
         $"TranscriptionMilliseconds: {transcriptionStopwatch.ElapsedMilliseconds}{Environment.NewLine}" +
@@ -1037,6 +1052,24 @@ static AutomationElement WaitForDuration(
 
     throw new TimeoutException(
         $"Element '{automationId}' did not reach {minimumDuration} within {timeout}. Last value: '{observedName}'.");
+}
+
+static void WaitForRecordedFileSize(string path, long minimumBytes, TimeSpan timeout)
+{
+    Stopwatch stopwatch = Stopwatch.StartNew();
+    while (stopwatch.Elapsed < timeout)
+    {
+        if (File.Exists(path) && new FileInfo(path).Length >= minimumBytes)
+        {
+            return;
+        }
+
+        Thread.Sleep(100);
+    }
+
+    long observedBytes = File.Exists(path) ? new FileInfo(path).Length : 0;
+    throw new TimeoutException(
+        $"Recorded file '{path}' did not reach {minimumBytes} bytes within {timeout}. Last size: {observedBytes}.");
 }
 
 static void ValidateWaveFile(string path)
