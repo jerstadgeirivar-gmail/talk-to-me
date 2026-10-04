@@ -5,7 +5,10 @@ public sealed class ApplicationStateController : IApplicationStateController
     private static readonly Dictionary<DictationState, HashSet<DictationState>> AllowedTransitions =
         new()
         {
-            [DictationState.Idle] = Set(DictationState.StartingRecording, DictationState.RecoverableFailure),
+            [DictationState.Idle] = Set(
+                DictationState.StartingRecording,
+                DictationState.PreparingAudio,
+                DictationState.RecoverableFailure),
             [DictationState.StartingRecording] = Set(
                 DictationState.Recording,
                 DictationState.Cancelling,
@@ -35,7 +38,7 @@ public sealed class ApplicationStateController : IApplicationStateController
                 DictationState.Completed,
                 DictationState.ReadyToInsert,
                 DictationState.RecoverableFailure),
-            [DictationState.Completed] = Set(DictationState.Idle),
+            [DictationState.Completed] = Set(DictationState.Idle, DictationState.PreparingAudio),
             [DictationState.Cancelling] = Set(DictationState.Cancelled, DictationState.RecoverableFailure),
             [DictationState.Cancelled] = Set(DictationState.Idle),
             [DictationState.RecoverableFailure] = Set(DictationState.Idle, DictationState.Transcribing),

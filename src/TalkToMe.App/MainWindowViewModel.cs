@@ -22,6 +22,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private bool _retainFailedAudio;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly AsyncDelegateCommand _startRecordingCommand;
+    private readonly AsyncDelegateCommand _openAudioFileCommand;
     private readonly AsyncDelegateCommand _stopRecordingCommand;
     private readonly AsyncDelegateCommand _insertCommand;
     private readonly AsyncDelegateCommand _cancelCommand;
@@ -65,6 +66,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         _allowRecordOnly = allowRecordOnly;
         _retainFailedAudio = retainFailedAudio;
         _startRecordingCommand = new AsyncDelegateCommand(StartRecordingFromWindowAsync, CanStartRecording);
+        _openAudioFileCommand = new AsyncDelegateCommand(OpenAudioFileAsyncFromCommand, CanOpenAudioFile);
         _stopRecordingCommand = new AsyncDelegateCommand(StopRecordingAsync, () => IsRecording);
         _insertCommand = new AsyncDelegateCommand(InsertTranscriptAsync, CanInsertTranscript);
         _cancelCommand = new AsyncDelegateCommand(CancelRecordingAsync, () => IsRecording);
@@ -139,6 +141,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     }
 
     public ICommand StartRecordingCommand => _startRecordingCommand;
+
+    public ICommand OpenAudioFileCommand => _openAudioFileCommand;
 
     public ICommand StopRecordingCommand => _stopRecordingCommand;
 
@@ -294,6 +298,71 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         (_transcriptionProvider is not null || _allowRecordOnly) &&
         !IsRecording &&
         _stateController.Current is DictationState.Idle or DictationState.Completed;
+
+    private bool CanOpenAudioFile() =>
+        _transcriptionProvider is not null &&
+        !IsRecording &&
+        _stateController.Current is DictationState.Idle or DictationState.Completed;
+
+    private Task OpenAudioFileAsyncFromCommand() => Task.CompletedTask;
+
+    public async Task OpenAudioFileAsync(string filePath)
+    {
+        if (!CanOpenAudioFile())
+        {
+            StatusText = "Audio import is not ready";
+            return;
+        }
+
+        try
+        {
+            string fullPath = Path.GetFullPath(filePath);
+            FileInfo file = new(fullPath);
+            if (!file.Exists)
+            {
+                throw new FileNotFoundException("The selected audio file was not found.", fullPath);
+            }
+
+            TimeSpan duration = GetAudioDuration(fullPath);
+            _stateController.TransitionTo(DictationState.PreparingAudio);
+            TranscriptText = string.Empty;
+            DurationText = FormatDuration(duration);
+            TargetText = "Imported audio file — the original file will not be changed";
+            StatusText = $"Opening {file.Name}";
+            _stateController.TransitionTo(DictationState.Transcribing);
+            await TranscribeImportedAudioAsync(new RecordedAudio(fullPath, duration, file.Length));
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Audio import cancelled";
+            if (_stateController.Current == DictationState.Transcribing)
+            {
+                _stateController.TransitionTo(DictationState.RecoverableFailure);
+            }
+        }
+        catch (TranscriptionException exception)
+        {
+            if (_stateController.Current == DictationState.Transcribing)
+            {
+                _stateController.TransitionTo(DictationState.RecoverableFailure);
+            }
+
+            StatusText = GetTranscriptionFailureMessage(exception) + " The original file was kept.";
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (_stateController.Current == DictationState.Transcribing)
+            {
+                _stateController.TransitionTo(DictationState.RecoverableFailure);
+            }
+
+            StatusText = $"Could not import audio: {exception.Message} The original file was kept.";
+        }
+        finally
+        {
+            _openAudioFileCommand.RaiseCanExecuteChanged();
+        }
+    }
 
     private bool CanInsertTranscript() =>
         _stateController.Current == DictationState.ReadyToInsert &&
@@ -521,6 +590,26 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             : "Transcript ready";
         _insertCommand.RaiseCanExecuteChanged();
         RaiseRecoveryCanExecuteChanged();
+    }
+
+    private async Task TranscribeImportedAudioAsync(RecordedAudio audio)
+    {
+        Progress<string> progress = new(message => StatusText = message);
+        TranscriptionResult transcription = await _transcriptionProvider!.TranscribeAsync(
+            audio,
+            new TranscriptionContext(null, null, progress),
+            _lifetimeCancellation.Token);
+        TranscriptText = transcription.Text;
+        _stateController.TransitionTo(DictationState.ReadyToInsert);
+        StatusText = "Transcript ready — the original file was kept";
+        _insertCommand.RaiseCanExecuteChanged();
+        RaiseRecoveryCanExecuteChanged();
+    }
+
+    private static TimeSpan GetAudioDuration(string filePath)
+    {
+        using NAudio.Wave.AudioFileReader reader = new(filePath);
+        return reader.TotalTime;
     }
 
     private void RaiseRecoveryCanExecuteChanged()

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Interop;
+using Microsoft.Win32;
 using TalkToMe.Core;
 using TalkToMe.Infrastructure;
 
@@ -85,6 +86,21 @@ public partial class MainWindow : Window
     private void OpenSettings(object sender, RoutedEventArgs e) => ShowSettingsWindow();
 
     private void HideToTray(object sender, RoutedEventArgs e) => Hide();
+
+    private async void OpenAudioFile(object sender, RoutedEventArgs e)
+    {
+        Microsoft.Win32.OpenFileDialog dialog = new()
+        {
+            Title = "Open audio file",
+            Filter = "Audio files|*.wav;*.mp3;*.m4a;*.mp4;*.mpeg;*.mpga;*.webm;*.flac|All files|*.*",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            await _viewModel.OpenAudioFileAsync(dialog.FileName);
+        }
+    }
 
     protected override void OnSourceInitialized(EventArgs e)
     {

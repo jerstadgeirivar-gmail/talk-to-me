@@ -43,9 +43,10 @@ bool liveProviderScenario = args.Length == 3 && args[1] == "--live-provider";
 bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
 bool liveOversizedScenario = args.Length == 4 && args[3] == "--live-oversized";
 bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
+bool importFileScenario = args.Length == 4 && args[3] == "--import-file";
 bool privacyFailureScenario = args.Length == 5 && args[3] == "--privacy-failure";
 bool privacyTranscriptionFailureScenario = args.Length == 4 && args[3] == "--privacy-transcription-failure";
-if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveAzureScenario && !liveOversizedScenario && !liveLocalScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 4 and not 5)
+if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveAzureScenario && !liveOversizedScenario && !liveLocalScenario && !importFileScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 4 and not 5)
 {
     Console.Error.WriteLine(
         "Usage: TalkToMe.UiDriver <application-path> <audio-fixture-path> <evidence-directory> [diagnostic-transcript|--live target-application-path]");
@@ -93,7 +94,7 @@ try
     {
         // Use the application's real configured provider and protected credential.
     }
-    else if (settingsScenario || capabilitiesScenario || firstRunModelScenario)
+    else if (settingsScenario || capabilitiesScenario || firstRunModelScenario || importFileScenario)
     {
         startInfo.ArgumentList.Add("--diagnostic-data-directory");
         startInfo.ArgumentList.Add(Path.Combine(evidenceDirectory, "data"));
@@ -113,7 +114,7 @@ try
             startInfo.ArgumentList.Add("--diagnostic-no-delay");
         }
     }
-    if (liveAzureScenario || liveOversizedScenario || liveLocalScenario || privacyTranscriptionFailureScenario)
+    if (liveAzureScenario || liveOversizedScenario || liveLocalScenario || importFileScenario || privacyTranscriptionFailureScenario)
     {
         startInfo.ArgumentList.Add("--diagnostic-live-provider");
     }
@@ -167,8 +168,49 @@ try
     AutomationElement source = WaitForElementName(
         window,
         sourceAutomationId,
-        expectedSource,
+        importFileScenario ? "Default microphone" : expectedSource,
         TimeSpan.FromSeconds(5));
+    if (importFileScenario)
+    {
+        AutomationElement openButton = FindByAutomationId(window, "OpenAudioFileButton");
+        openButton.AsButton().Invoke();
+        Window fileDialog = WaitForNamedWindow(window, "Open audio file", TimeSpan.FromSeconds(10));
+        AutomationElement fileName = fileDialog.FindFirstDescendant(
+            condition => condition.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))
+            ?? throw new InvalidOperationException("The audio file dialog did not expose a file-name field.");
+        fileName.AsTextBox().Enter(audioFixturePath!);
+        AutomationElement openFileButton = fileDialog.FindFirstDescendant(
+            condition => condition.ByText("Open"))
+            ?? throw new InvalidOperationException("The audio file dialog did not expose an Open button.");
+        openFileButton.AsButton().Invoke();
+        AutomationElement importedStatus = WaitForElementNameContains(
+            window,
+            statusAutomationId,
+            "Transcript ready",
+            TimeSpan.FromMinutes(10));
+        AutomationElement importedTranscript = FindByAutomationId(window, transcriptAutomationId);
+        if (string.IsNullOrWhiteSpace(importedTranscript.AsTextBox().Text))
+        {
+            throw new InvalidOperationException("Imported audio produced an empty transcript.");
+        }
+
+        if (!File.Exists(audioFixturePath))
+        {
+            throw new InvalidOperationException("The imported source file was not preserved.");
+        }
+
+        Thread.Sleep(250);
+        WriteAutomationTree(window, Path.Combine(evidenceDirectory, "uia-tree.txt"));
+        CaptureWindow(window, Path.Combine(evidenceDirectory, "main-window.png"));
+        File.WriteAllText(
+            Path.Combine(evidenceDirectory, "result.txt"),
+            $"Status: {importedStatus.Name}{Environment.NewLine}" +
+            $"TranscriptCharacters: {importedTranscript.AsTextBox().Text.Length}{Environment.NewLine}" +
+            $"SourcePreserved: {File.Exists(audioFixturePath)}{Environment.NewLine}" +
+            "Result: PASS" + Environment.NewLine);
+        Console.WriteLine($"PASS pid={processId} imported={Path.GetFileName(audioFixturePath)} status=\"{importedStatus.Name}\"");
+        return 0;
+    }
     if (insertionScenario)
     {
         (notepadApplication, notepadProcess, notepadLauncher, notepadWindow, notepadEditor) =
