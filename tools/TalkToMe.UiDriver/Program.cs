@@ -43,7 +43,8 @@ bool liveProviderScenario = args.Length == 3 && args[1] == "--live-provider";
 bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
 bool liveOversizedScenario = args.Length == 4 && args[3] == "--live-oversized";
 bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
-bool importFileScenario = args.Length == 4 && args[3] == "--import-file";
+bool configuredImportScenario = args.Length == 4 && args[3] == "--import-file-configured";
+bool importFileScenario = configuredImportScenario || args.Length == 4 && args[3] == "--import-file";
 bool privacyFailureScenario = args.Length == 5 && args[3] == "--privacy-failure";
 bool privacyTranscriptionFailureScenario = args.Length == 4 && args[3] == "--privacy-transcription-failure";
 if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveAzureScenario && !liveOversizedScenario && !liveLocalScenario && !importFileScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 4 and not 5)
@@ -90,7 +91,7 @@ try
         UseShellExecute = false,
         WorkingDirectory = Path.GetDirectoryName(applicationPath),
     };
-    if (liveProviderScenario)
+    if (liveProviderScenario || configuredImportScenario)
     {
         // Use the application's real configured provider and protected credential.
     }
@@ -114,7 +115,7 @@ try
             startInfo.ArgumentList.Add("--diagnostic-no-delay");
         }
     }
-    if (liveAzureScenario || liveOversizedScenario || liveLocalScenario || importFileScenario || privacyTranscriptionFailureScenario)
+    if (liveAzureScenario || liveOversizedScenario || liveLocalScenario || importFileScenario && !configuredImportScenario || privacyTranscriptionFailureScenario)
     {
         startInfo.ArgumentList.Add("--diagnostic-live-provider");
     }
@@ -176,11 +177,13 @@ try
         openButton.AsButton().Invoke();
         Window fileDialog = WaitForNamedWindow(window, "Open audio file", TimeSpan.FromSeconds(10));
         AutomationElement fileName = fileDialog.FindFirstDescendant(
-            condition => condition.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))
+            condition => condition.ByAutomationId("1148").And(
+                condition.ByControlType(FlaUI.Core.Definitions.ControlType.Edit)))
             ?? throw new InvalidOperationException("The audio file dialog did not expose a file-name field.");
         fileName.AsTextBox().Enter(audioFixturePath!);
         AutomationElement openFileButton = fileDialog.FindFirstDescendant(
-            condition => condition.ByText("Open"))
+            condition => condition.ByAutomationId("1").And(
+                condition.ByControlType(FlaUI.Core.Definitions.ControlType.SplitButton)))
             ?? throw new InvalidOperationException("The audio file dialog did not expose an Open button.");
         openFileButton.AsButton().Invoke();
         AutomationElement importedStatus = WaitForElementNameContains(
@@ -199,6 +202,7 @@ try
             throw new InvalidOperationException("The imported source file was not preserved.");
         }
 
+        File.WriteAllText(Path.Combine(evidenceDirectory, "transcript.txt"), importedTranscript.AsTextBox().Text);
         Thread.Sleep(250);
         WriteAutomationTree(window, Path.Combine(evidenceDirectory, "uia-tree.txt"));
         CaptureWindow(window, Path.Combine(evidenceDirectory, "main-window.png"));

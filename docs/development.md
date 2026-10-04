@@ -97,6 +97,14 @@ The Release build and 30 tests passed. The installer compiled successfully with 
 
 The automatic-update restart journey remains blocked because the fixed `1.0.14` package is not published and no existing updater harness can provide a valid release source containing these changes. Update-cancellation remains untested for the same reason; the installed-app journeys confirmed that no `gh.exe` process remained after each driver run.
 
+### Local installation on 2026-10-04
+
+Version `1.0.16` was published self-contained for `win-x64`, packaged with Inno Setup 6, and installed using `.github/skills/install-talk-to-me/scripts/install-local.ps1`. The script confirmed that no `TalkToMe.App` process remained before setup; the installer log at `artifacts/validation/install-1.0.16.log` reports success. The installed executable under `%LOCALAPPDATA%\Programs\TalkToMe` reports product version `1.0.16`. Installer SHA-256: `DBC19DDC6F742C1ACD635921A65627578FB6C2031651A0BED7A691A00DE3DA68`.
+
+Real Debug and installed-binary recording and transcription-failure recovery journeys passed. Results, screenshots, and UI trees are under `artifacts/validation/local-install-1.0.16-debug-record`, `local-install-1.0.16-debug-failure`, `local-install-1.0.16-installed-record-final`, and `local-install-1.0.16-installed-failure`. An earlier installed recording attempt exited before exposing a window; the rerun passed after confirming no other app process remained.
+
+The Windows 11 file-picker automation for `--import-file` must target the filename `Edit` with automation ID `1148` and the primary Open `SplitButton` with ID `1`. The first `Edit` in the dialog can belong to the file list, and the first element named `Open` is the filename history dropdown. The corrected driver closed the dialog and began import, but the installed Local Whisper provider reported failure for the MP3 fixture; the subsequent WAV import did not produce a completed result before the app exited. Neither real import transcription nor automatic-update restart was validated in this installation. Import investigation evidence is in `artifacts/validation/local-install-1.0.16-installed-import-final` and `local-install-1.0.16-installed-wav-import`.
+
 ## Limitations
 
 - A normal-integrity process cannot inject input into an elevated target because of Windows UIPI.
