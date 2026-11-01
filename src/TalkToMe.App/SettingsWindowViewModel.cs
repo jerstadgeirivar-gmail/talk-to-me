@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using TalkToMe.Core;
 using TalkToMe.Infrastructure;
@@ -17,7 +18,7 @@ public sealed class SettingsWindowViewModel(
     private string _lmStudioBaseUrl = "http://localhost:1234", _lmStudioModel = string.Empty;
     private string _ollamaBaseUrl = "http://localhost:11434", _ollamaModel = string.Empty;
     private string _transcriptionLanguageMode = TranscriptionLanguageModes.Norwegian;
-    private string _technicalVocabulary = string.Empty, _hotkey = "Win+<", _targetWindowPolicy = "OriginalTarget", _diagnosticLoggingLevel = "Information";
+    private string _hotkey = "Win+<", _targetWindowPolicy = "OriginalTarget", _diagnosticLoggingLevel = "Information";
     private bool _retainFailedAudio, _startWithWindows, _clipboardOnlyMode, _voiceCommandsEnabled, _isBusy;
     private string _azureSecretStatus = "Not configured", _lmStudioSecretStatus = "Not configured", _ollamaSecretStatus = "Not configured";
     private string _providerStatus = "Not tested", _statusText = string.Empty, _progressText = string.Empty;
@@ -44,7 +45,8 @@ public sealed class SettingsWindowViewModel(
     public string OllamaBaseUrl { get => _ollamaBaseUrl; set => SetProperty(ref _ollamaBaseUrl, value); }
     public string OllamaModel { get => _ollamaModel; set => SetProperty(ref _ollamaModel, value); }
     public string TranscriptionLanguageMode { get => _transcriptionLanguageMode; set => SetProperty(ref _transcriptionLanguageMode, value); }
-    public string TechnicalVocabulary { get => _technicalVocabulary; set => SetProperty(ref _technicalVocabulary, value); }
+    public string VocabularyFilePath => settingsStore.VocabularyFilePath
+        ?? throw new InvalidOperationException("The settings store does not support vocabulary files.");
     public bool RetainFailedAudio { get => _retainFailedAudio; set => SetProperty(ref _retainFailedAudio, value); }
     public bool StartWithWindows { get => _startWithWindows; set => SetProperty(ref _startWithWindows, value); }
     public bool ClipboardOnlyMode { get => _clipboardOnlyMode; set => SetProperty(ref _clipboardOnlyMode, value); }
@@ -74,7 +76,7 @@ public sealed class SettingsWindowViewModel(
         LmStudioBaseUrl = settings.LmStudioBaseUrl; LmStudioModel = settings.LmStudioModel;
         OllamaBaseUrl = settings.OllamaBaseUrl; OllamaModel = settings.OllamaModel;
         TranscriptionLanguageMode = settings.TranscriptionLanguageMode;
-        TechnicalVocabulary = settings.TechnicalVocabulary; RetainFailedAudio = settings.RetainFailedAudio;
+        RetainFailedAudio = settings.RetainFailedAudio;
         StartWithWindows = settings.StartWithWindows; ClipboardOnlyMode = settings.ClipboardOnlyMode;
         TargetWindowPolicy = settings.TargetWindowPolicy; Hotkey = settings.Hotkey;
         VoiceCommandsEnabled = settings.VoiceCommandsEnabled ?? false; DiagnosticLoggingLevel = settings.DiagnosticLoggingLevel;
@@ -88,7 +90,12 @@ public sealed class SettingsWindowViewModel(
         Func<string, bool> applyHotkey, Func<bool, bool> applyVoiceCommands, CancellationToken cancellationToken)
     {
         if (!Validate() || !applyHotkey(Hotkey.Trim())) return false;
-        await SaveConfigurationAsync(cancellationToken);
+        try { await SaveConfigurationAsync(cancellationToken); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            StatusText = $"Settings could not be saved: {exception.Message}";
+            return false;
+        }
         applyFailedAudioRetention(RetainFailedAudio);
         await SaveSecretAsync(TranscriptionProviderIds.AzureOpenAi, azureKey, value => AzureSecretStatus = value, cancellationToken);
         await SaveSecretAsync(TranscriptionProviderIds.LmStudio, lmStudioToken, value => LmStudioSecretStatus = value, cancellationToken);
@@ -137,27 +144,49 @@ public sealed class SettingsWindowViewModel(
         StatusText = "Protected credential removed.";
     }
 
-    private async Task SaveConfigurationAsync(CancellationToken cancellationToken) => await settingsStore.SaveAsync(new ApplicationSettings
+    public async Task EditVocabularyAsync(CancellationToken cancellationToken)
     {
-        TranscriptionProviderId = SelectedProviderId,
-        LocalWhisperModel = "small-q5_1",
-        AzureEndpoint = AzureEndpoint.Trim(),
-        AzureDeployment = AzureDeployment.Trim(),
-        AzureApiVersion = AzureApiVersion.Trim(),
-        LmStudioBaseUrl = LmStudioBaseUrl.Trim(),
-        LmStudioModel = LmStudioModel.Trim(),
-        OllamaBaseUrl = OllamaBaseUrl.Trim(),
-        OllamaModel = OllamaModel.Trim(),
-        TranscriptionLanguageMode = TranscriptionLanguageMode,
-        TechnicalVocabulary = TechnicalVocabulary,
-        RetainFailedAudio = RetainFailedAudio,
-        StartWithWindows = StartWithWindows,
-        ClipboardOnlyMode = ClipboardOnlyMode,
-        TargetWindowPolicy = TargetWindowPolicy,
-        Hotkey = Hotkey.Trim(),
-        VoiceCommandsEnabled = VoiceCommandsEnabled,
-        DiagnosticLoggingLevel = DiagnosticLoggingLevel,
-    }, cancellationToken);
+        try
+        {
+            await settingsStore.EnsureVocabularyAsync(cancellationToken);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("notepad.exe")
+            {
+                UseShellExecute = true,
+                Arguments = $"\"{VocabularyFilePath}\"",
+            });
+            StatusText = string.Empty;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException or System.ComponentModel.Win32Exception)
+        {
+            StatusText = $"Vocabulary file could not be opened: {exception.Message}";
+        }
+    }
+
+    private async Task SaveConfigurationAsync(CancellationToken cancellationToken)
+    {
+        ApplicationSettings current = await settingsStore.LoadAsync(cancellationToken);
+        await settingsStore.SaveAsync(new ApplicationSettings
+        {
+            TranscriptionProviderId = SelectedProviderId,
+            LocalWhisperModel = "small-q5_1",
+            AzureEndpoint = AzureEndpoint.Trim(),
+            AzureDeployment = AzureDeployment.Trim(),
+            AzureApiVersion = AzureApiVersion.Trim(),
+            LmStudioBaseUrl = LmStudioBaseUrl.Trim(),
+            LmStudioModel = LmStudioModel.Trim(),
+            OllamaBaseUrl = OllamaBaseUrl.Trim(),
+            OllamaModel = OllamaModel.Trim(),
+            TranscriptionLanguageMode = TranscriptionLanguageMode,
+            TechnicalVocabulary = current.TechnicalVocabulary,
+            RetainFailedAudio = RetainFailedAudio,
+            StartWithWindows = StartWithWindows,
+            ClipboardOnlyMode = ClipboardOnlyMode,
+            TargetWindowPolicy = TargetWindowPolicy,
+            Hotkey = Hotkey.Trim(),
+            VoiceCommandsEnabled = VoiceCommandsEnabled,
+            DiagnosticLoggingLevel = DiagnosticLoggingLevel,
+        }, cancellationToken);
+    }
 
     private async Task SaveSecretAsync(string id, string value, Action<string> update, CancellationToken token)
     {

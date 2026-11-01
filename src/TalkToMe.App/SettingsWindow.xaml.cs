@@ -67,6 +67,9 @@ public partial class SettingsWindow : Window, IDisposable
 
     private void CancelOperation(object sender, RoutedEventArgs e) => _operationCancellation?.Cancel();
 
+    private async void EditVocabulary(object sender, RoutedEventArgs e) =>
+        await _viewModel.EditVocabularyAsync(CancellationToken.None);
+
     private void CloseSettings(object sender, RoutedEventArgs e) { _operationCancellation?.Cancel(); Close(); }
 
     public void Dispose()

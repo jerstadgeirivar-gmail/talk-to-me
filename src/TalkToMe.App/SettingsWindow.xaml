@@ -82,7 +82,9 @@
                               SelectedValuePath="Id" SelectedValue="{Binding TranscriptionLanguageMode}"
                               AutomationProperties.AutomationId="TranscriptionLanguageSelector" AutomationProperties.Name="Transcription language"/>
                     <TextBlock Foreground="{StaticResource MutedTextBrush}" Text="Norwegian prevents incorrect Swedish or Chinese detection. Norwegian + English also hints that English words and sentences may occur." TextWrapping="Wrap"/>
-                    <TextBlock Margin="0,14,0,5" Style="{StaticResource FieldLabel}" Text="Technical vocabulary and context"/><TextBox Height="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="{Binding TechnicalVocabulary}" AutomationProperties.AutomationId="VocabularyTextBox"/>
+                    <TextBlock Margin="0,14,0,5" Style="{StaticResource FieldLabel}" Text="Vocabulary file"/>
+                    <TextBox IsReadOnly="True" TextWrapping="Wrap" Text="{Binding VocabularyFilePath, Mode=OneWay}" AutomationProperties.AutomationId="VocabularyFilePathTextBox"/>
+                    <Button Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}" Content="Edit vocabulary" Click="EditVocabulary" AutomationProperties.AutomationId="EditVocabularyButton"/>
                     <TextBlock Margin="0,14,0,5" Style="{StaticResource FieldLabel}" Text="Global hotkey"/><TextBox Text="{Binding Hotkey}" AutomationProperties.AutomationId="HotkeyTextBox"/>
                     <CheckBox Margin="0,16,0,0" Content="Enable “computer” voice command" IsChecked="{Binding VoiceCommandsEnabled}" AutomationProperties.AutomationId="VoiceCommandsEnabledCheckBox"/>
                     <CheckBox Margin="0,12,0,0" Content="Keep audio after failed transcription" IsChecked="{Binding RetainFailedAudio}" AutomationProperties.AutomationId="RetainFailedAudioCheckBox"/>
@@ -92,8 +94,9 @@
             </TabItem>
         </TabControl>
         <Border Grid.Row="2" Padding="28,12" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <Grid><TextBlock VerticalAlignment="Center" MaxWidth="350" Foreground="{StaticResource DangerBrush}" Text="{Binding StatusText}" TextWrapping="Wrap" AutomationProperties.AutomationId="SettingsStatusText" AutomationProperties.Name="{Binding StatusText}"/>
-                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal"><Button MinWidth="90" Style="{StaticResource SecondaryButton}" Content="Close" Click="CloseSettings" AutomationProperties.AutomationId="CloseSettingsButton"/><Button MinWidth="110" Margin="8,0,0,0" Style="{StaticResource PrimaryButton}" Content="Save settings" Click="SaveSettings" AutomationProperties.AutomationId="SaveSettingsButton"/></StackPanel>
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource DangerBrush}" Text="{Binding StatusText}" TextWrapping="Wrap" AutomationProperties.AutomationId="SettingsStatusText" AutomationProperties.Name="{Binding StatusText}"/>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal"><Button MinWidth="90" Style="{StaticResource SecondaryButton}" Content="Close" Click="CloseSettings" AutomationProperties.AutomationId="CloseSettingsButton"/><Button MinWidth="110" Margin="8,0,0,0" Style="{StaticResource PrimaryButton}" Content="Save settings" Click="SaveSettings" AutomationProperties.AutomationId="SaveSettingsButton"/></StackPanel>
             </Grid>
         </Border>
     </Grid>

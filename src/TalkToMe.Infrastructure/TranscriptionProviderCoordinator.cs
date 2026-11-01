@@ -41,6 +41,16 @@ public sealed class TranscriptionProviderCoordinator(ITranscriptionProviderFacto
                 _reload = false;
             }
             ApplicationSettings settings = await settingsStore.LoadAsync(cancellationToken);
+            try
+            {
+                settings = settings with { TechnicalVocabulary = await settingsStore.LoadVocabularyAsync(cancellationToken) };
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException)
+            {
+                throw new TranscriptionException(TranscriptionFailureCategory.RuntimeUnavailable,
+                    $"Cannot read vocabulary file '{settingsStore.VocabularyFilePath}'. Save it as UTF-8 and check file access, then retry.",
+                    innerException: exception);
+            }
             TranscriptionContext effectiveContext = CreateEffectiveContext(context, settings);
             return await _provider.TranscribeAsync(audio, effectiveContext, cancellationToken);
         }

@@ -302,7 +302,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private bool CanOpenAudioFile() =>
         _transcriptionProvider is not null &&
         !IsRecording &&
-        _stateController.Current is DictationState.Idle or DictationState.Completed;
+        _stateController.Current is DictationState.Idle or DictationState.Completed or DictationState.RecoverableFailure;
 
     private Task OpenAudioFileAsyncFromCommand() => Task.CompletedTask;
 
@@ -324,6 +324,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             }
 
             TimeSpan duration = GetAudioDuration(fullPath);
+            if (_stateController.Current == DictationState.RecoverableFailure)
+            {
+                _stateController.TransitionTo(DictationState.Idle);
+            }
             _stateController.TransitionTo(DictationState.PreparingAudio);
             TranscriptText = string.Empty;
             DurationText = FormatDuration(duration);

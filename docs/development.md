@@ -80,6 +80,20 @@ dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build
 
 See [manual-test-plan.md](manual-test-plan.md) and [troubleshooting.md](troubleshooting.md).
 
+Standalone vocabulary validation uses the real configured Azure credential in an isolated data directory and real imported audio. It checks legacy migration, external-edit preservation when settings are saved, empty/missing files, invalid UTF-8 failure, and transcription after repair:
+
+```powershell
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- src\TalkToMe.App\bin\Debug\net10.0-windows\TalkToMe.App.exe _init\norwegian-audio-speech-test.mp3 artifacts\validation\vocabulary-debug --vocabulary
+```
+
+Use a fresh evidence directory each time, and stop other `TalkToMe.App` instances first. The Windows picker helper accepts the primary Open control with automation ID `1` as either a Button or SplitButton, and selects the filename Edit with ID `1148`. The driver fails immediately on terminal import errors, bounds the normal import wait at three minutes, and closes its owned app in `finally`. Re-import after a recoverable failure returns through Idle, allowing repair-and-retry without restarting. A successful run records migration/recovery results, UI trees, screenshots, and the real transcript. It does not measure vocabulary accuracy improvement or establish provider token limits.
+
+The 2026-11-01 Debug vocabulary journey passed in `artifacts/validation/vocabulary-debug-20261101-r4`: migration, external edits preserved by settings saves, empty/missing files, invalid UTF-8 failure, and real Azure transcription after repair. The returned transcript contained 203 characters, the source audio was preserved, and a post-run process query confirmed no app or driver remained. Earlier stalled-run evidence is retained under `artifacts/validation/vocabulary-stalled-20261101`; its observable status was `Audio import is not ready`, which led to the re-import recovery fix.
+
+Version `1.0.19` was published self-contained and installed locally on 2026-11-01 with the required process-stop/verification script. Installer SHA-256: `E633D403A4EBF972A4B5DB720FF437D199ED1FC1F7B6A7F41D10D618C5FCA018`. The installation log is `artifacts/validation/vocabulary-install-1.0.19.log`. The same installed-binary migration, file failure/recovery, and real Azure transcription journey passed in `artifacts/validation/vocabulary-installed-20261101`. A separate real configured import in `artifacts/validation/vocabulary-personal-20261101` migrated the user's existing vocabulary exactly (54 lines, 1,076 characters) and cleared the inline settings value. Normal installed launch was responsive (`Ready`), and the Settings editor action opened the actual UTF-8 text in Notepad; inspected screenshots are in `artifacts/validation/vocabulary-normal-20261101`.
+
+No vocabulary accuracy comparison, maximum-token boundary, Local Whisper transcription, file-permission denial, or automatic-update restart was exercised in this change. Tests used real WPF processes, real files, the real configured Azure service, and actual recorded audio; no unit tests or diagnostic transcript substitutes were used. The normal installed app and personal Notepad tab were left open intentionally after validation.
+
 ## Packaged validation record
 
 The 2026-09-17 packaged validation used version `1.0.14`:

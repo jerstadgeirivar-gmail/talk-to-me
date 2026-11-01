@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TalkToMe.Core;
@@ -7,25 +8,46 @@ namespace TalkToMe.Infrastructure;
 public sealed partial class JsonApplicationSettingsStore(string? settingsFile = null) : IApplicationSettingsStore
 {
     private readonly string _settingsFile = settingsFile ?? TalkToMeDataPaths.SettingsFile;
+    public string VocabularyFilePath { get; } = Path.Combine(
+        Path.GetDirectoryName(Path.GetFullPath(settingsFile ?? TalkToMeDataPaths.SettingsFile))!,
+        "vocabulary.txt");
 
     public async Task<ApplicationSettings> LoadAsync(CancellationToken cancellationToken)
     {
-        if (!File.Exists(_settingsFile))
+        ApplicationSettings settings = new();
+        if (File.Exists(_settingsFile))
         {
-            return new ApplicationSettings();
+            await using FileStream stream = File.OpenRead(_settingsFile);
+            settings = Normalize(await JsonSerializer.DeserializeAsync(
+                stream,
+                SettingsJsonContext.Default.ApplicationSettings,
+                cancellationToken));
         }
 
-        await using FileStream stream = File.OpenRead(_settingsFile);
-        ApplicationSettings? settings = await JsonSerializer.DeserializeAsync(
-            stream,
-            SettingsJsonContext.Default.ApplicationSettings,
-            cancellationToken);
-        return Normalize(settings);
+        return settings;
+    }
+
+    public async Task<string> LoadVocabularyAsync(CancellationToken cancellationToken)
+    {
+        await EnsureVocabularyAsync(cancellationToken);
+        return await File.ReadAllTextAsync(
+            VocabularyFilePath, new UTF8Encoding(false, true), cancellationToken);
+    }
+
+    public async Task EnsureVocabularyAsync(CancellationToken cancellationToken)
+    {
+        ApplicationSettings settings = await LoadAsync(cancellationToken);
+        await EnsureVocabularyFileAsync(settings.TechnicalVocabulary, cancellationToken);
+        if (!string.IsNullOrEmpty(settings.TechnicalVocabulary))
+        {
+            await SaveAsync(settings, cancellationToken);
+        }
     }
 
     public async Task SaveAsync(ApplicationSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        await EnsureVocabularyFileAsync(settings.TechnicalVocabulary, cancellationToken);
         Directory.CreateDirectory(Path.GetDirectoryName(_settingsFile)!);
         string temporaryPath = _settingsFile + ".tmp";
         await using (FileStream stream = new(
@@ -38,13 +60,27 @@ public sealed partial class JsonApplicationSettingsStore(string? settingsFile = 
         {
             await JsonSerializer.SerializeAsync(
                 stream,
-                settings,
+                settings with { TechnicalVocabulary = string.Empty },
                 SettingsJsonContext.Default.ApplicationSettings,
                 cancellationToken);
             await stream.FlushAsync(cancellationToken);
         }
 
         File.Move(temporaryPath, _settingsFile, overwrite: true);
+    }
+
+    private async Task EnsureVocabularyFileAsync(string legacyVocabulary, CancellationToken cancellationToken)
+    {
+        if (File.Exists(VocabularyFilePath)) return;
+        Directory.CreateDirectory(Path.GetDirectoryName(VocabularyFilePath)!);
+        string temporaryPath = VocabularyFilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, legacyVocabulary, new UTF8Encoding(false), cancellationToken);
+            try { File.Move(temporaryPath, VocabularyFilePath); }
+            catch (IOException) when (File.Exists(VocabularyFilePath)) { }
+        }
+        finally { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
     }
 
     private static ApplicationSettings Normalize(ApplicationSettings? settings)

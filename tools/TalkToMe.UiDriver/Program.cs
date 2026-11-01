@@ -21,6 +21,41 @@ if (args.Length == 2 && args[0] == "--scan-package")
 {
     return await ScanPackageAsync(Path.GetFullPath(args[1]));
 }
+if (args.Length is 2 or 3 && args[0] == "--inspect-running")
+{
+    string directory = Path.GetFullPath(args[1]);
+    Directory.CreateDirectory(directory);
+    using UIA3Automation inspection = new();
+    using Process running = Process.GetProcessesByName("TalkToMe.App").Single();
+    using Application attached = Application.Attach(running.Id);
+    Window runningWindow = attached.GetMainWindow(inspection, TimeSpan.FromSeconds(10))
+        ?? throw new InvalidOperationException("Running TalkToMe window is unavailable.");
+    Console.WriteLine($"pid={running.Id} responding={running.Responding} status={FindByAutomationId(runningWindow, "RecordingStatusText").Name}");
+    WriteAutomationTree(runningWindow, Path.Combine(directory, "running-uia-tree.txt"));
+    CaptureWindow(runningWindow, Path.Combine(directory, "running-window.png"));
+    if (args.Length == 3 && args[2] == "--edit-vocabulary")
+    {
+        Task invokeTask = Task.Run(() => FindByAutomationId(runningWindow, "SettingsButton").AsButton().Invoke());
+        Window settingsWindow = WaitForDescendantWindow(runningWindow, "SettingsWindow", TimeSpan.FromSeconds(10));
+        FindByAutomationId(settingsWindow, "DictationTab").Patterns.SelectionItem.Pattern.Select();
+        FindByAutomationId(settingsWindow, "EditVocabularyButton").AsButton().Invoke();
+        Stopwatch editorWait = Stopwatch.StartNew();
+        AutomationElement? editor = null;
+        while (editorWait.Elapsed < TimeSpan.FromSeconds(10) && editor is null)
+        {
+            editor = inspection.GetDesktop().FindAllChildren().FirstOrDefault(element =>
+                element.Name.Contains("vocabulary.txt", StringComparison.OrdinalIgnoreCase));
+            if (editor is null) Thread.Sleep(100);
+        }
+        if (editor is null) throw new InvalidOperationException("Vocabulary editor did not open.");
+        CaptureWindow(settingsWindow, Path.Combine(directory, "vocabulary-settings.png"));
+        CaptureWindow(editor, Path.Combine(directory, "vocabulary-editor.png"));
+        Console.WriteLine($"editor={editor.Name}");
+        settingsWindow.Close();
+        if (!invokeTask.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Settings did not close after opening vocabulary.");
+    }
+    return 0;
+}
 
 const string windowAutomationId = "MainWindow";
 const string buttonAutomationId = "StartRecordingButton";
@@ -44,7 +79,8 @@ bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
 bool liveOversizedScenario = args.Length == 4 && args[3] == "--live-oversized";
 bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
 bool configuredImportScenario = args.Length == 4 && args[3] == "--import-file-configured";
-bool importFileScenario = configuredImportScenario || args.Length == 4 && args[3] == "--import-file";
+bool vocabularyScenario = args.Length == 4 && args[3] == "--vocabulary";
+bool importFileScenario = vocabularyScenario || configuredImportScenario || args.Length == 4 && args[3] == "--import-file";
 bool privacyFailureScenario = args.Length == 5 && args[3] == "--privacy-failure";
 bool privacyTranscriptionFailureScenario = args.Length == 4 && args[3] == "--privacy-transcription-failure";
 if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveAzureScenario && !liveOversizedScenario && !liveLocalScenario && !importFileScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 4 and not 5)
@@ -64,6 +100,25 @@ string? targetApplicationPath = args.Length == 5 ? Path.GetFullPath(args[4]) : n
 bool insertionScenario = expectedTranscript is not null || liveAzureScenario || privacyFailureScenario;
 bool transcriptionScenario = insertionScenario || liveOversizedScenario || liveLocalScenario;
 Directory.CreateDirectory(evidenceDirectory);
+if (vocabularyScenario)
+{
+    string dataDirectory = Path.Combine(evidenceDirectory, "data");
+    Directory.CreateDirectory(dataDirectory);
+    ApplicationSettings current = await new JsonApplicationSettingsStore().LoadAsync(CancellationToken.None);
+    if (current.TranscriptionProviderId != TranscriptionProviderIds.AzureOpenAi)
+        throw new InvalidOperationException("Vocabulary live validation requires a real configured Azure provider.");
+    string settingsPath = Path.Combine(dataDirectory, "settings.json");
+    File.WriteAllText(settingsPath, System.Text.Json.JsonSerializer.Serialize(current with
+    {
+        TechnicalVocabulary = "Git, WSL, Ubuntu\nKubernetes\nMicrosoft Entra ID",
+        VoiceCommandsEnabled = false,
+        StartWithWindows = false,
+    }));
+    string? key = await new DpapiSecretStore().GetSecretAsync(TranscriptionProviderIds.AzureOpenAi, CancellationToken.None);
+    if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Real Azure credential is unavailable.");
+    await new DpapiSecretStore(Path.Combine(dataDirectory, "credential.bin"))
+        .SetSecretAsync(TranscriptionProviderIds.AzureOpenAi, key, CancellationToken.None);
+}
 if (settingsScenario)
 {
     PrepareLegacyNullSettings(evidenceDirectory);
@@ -173,24 +228,14 @@ try
         TimeSpan.FromSeconds(5));
     if (importFileScenario)
     {
-        AutomationElement openButton = FindByAutomationId(window, "OpenAudioFileButton");
-        openButton.AsButton().Invoke();
-        Window fileDialog = WaitForNamedWindow(window, "Open audio file", TimeSpan.FromSeconds(10));
-        AutomationElement fileName = fileDialog.FindFirstDescendant(
-            condition => condition.ByAutomationId("1148").And(
-                condition.ByControlType(FlaUI.Core.Definitions.ControlType.Edit)))
-            ?? throw new InvalidOperationException("The audio file dialog did not expose a file-name field.");
-        fileName.AsTextBox().Enter(audioFixturePath!);
-        AutomationElement openFileButton = fileDialog.FindFirstDescendant(
-            condition => condition.ByAutomationId("1").And(
-                condition.ByControlType(FlaUI.Core.Definitions.ControlType.SplitButton)))
-            ?? throw new InvalidOperationException("The audio file dialog did not expose an Open button.");
-        openFileButton.AsButton().Invoke();
-        AutomationElement importedStatus = WaitForElementNameContains(
+        if (vocabularyScenario)
+        {
+            RunVocabularyScenario(window, evidenceDirectory, audioFixturePath!);
+        }
+        ImportVocabularyAudio(window, audioFixturePath!);
+        AutomationElement importedStatus = WaitForImportResult(
             window,
-            statusAutomationId,
-            "Transcript ready",
-            TimeSpan.FromMinutes(10));
+            TimeSpan.FromMinutes(3));
         AutomationElement importedTranscript = FindByAutomationId(window, transcriptAutomationId);
         if (string.IsNullOrWhiteSpace(importedTranscript.AsTextBox().Text))
         {
@@ -488,6 +533,66 @@ static void AssertPrivacyDefaults(AutomationElement mainWindow)
     {
         throw new TimeoutException("Settings dialog invocation did not complete after the privacy check.");
     }
+}
+
+static void RunVocabularyScenario(AutomationElement mainWindow, string evidenceDirectory, string audioFixturePath)
+{
+    string dataDirectory = Path.Combine(evidenceDirectory, "data");
+    JsonApplicationSettingsStore store = new(Path.Combine(dataDirectory, "settings.json"));
+    string vocabularyPath = store.VocabularyFilePath;
+    Task invokeTask = Task.Run(() => FindByAutomationId(mainWindow, "SettingsButton").AsButton().Invoke());
+    Window settingsWindow = WaitForDescendantWindow(mainWindow, "SettingsWindow", TimeSpan.FromSeconds(10));
+    FindByAutomationId(settingsWindow, "DictationTab").Patterns.SelectionItem.Pattern.Select();
+    if (FindByAutomationId(settingsWindow, "VocabularyFilePathTextBox").AsTextBox().Text != vocabularyPath)
+        throw new InvalidOperationException("Settings did not display the isolated vocabulary file path.");
+    if (!FindByAutomationId(settingsWindow, "EditVocabularyButton").IsEnabled)
+        throw new InvalidOperationException("Vocabulary editor action is disabled.");
+    FindByAutomationId(settingsWindow, "SaveSettingsButton").AsButton().Invoke();
+    WaitForElementNameContains(settingsWindow, "SettingsStatusText", "Settings saved", TimeSpan.FromSeconds(10));
+    const string legacyVocabulary = "Git, WSL, Ubuntu\nKubernetes\nMicrosoft Entra ID";
+    if (File.ReadAllText(vocabularyPath) != legacyVocabulary)
+        throw new InvalidOperationException("Legacy vocabulary migration lost text.");
+    if (!string.IsNullOrEmpty(store.LoadAsync(CancellationToken.None).GetAwaiter().GetResult().TechnicalVocabulary))
+        throw new InvalidOperationException("Settings still contain inline vocabulary after migration.");
+    const string editedVocabulary = "GitHub Copilot\nAPI\nKubernetes\nMicrosoft Entra ID\nendepunkt\nappsettings";
+    File.WriteAllText(vocabularyPath, editedVocabulary, new UTF8Encoding(false));
+    FindByAutomationId(settingsWindow, "SaveSettingsButton").AsButton().Invoke();
+    if (File.ReadAllText(vocabularyPath) != editedVocabulary)
+        throw new InvalidOperationException("Saving settings overwrote external vocabulary edits.");
+    CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "vocabulary-settings.png"));
+    WriteAutomationTree(settingsWindow, Path.Combine(evidenceDirectory, "vocabulary-settings-uia.txt"));
+    settingsWindow.Close();
+    if (!invokeTask.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Vocabulary settings did not close.");
+    File.WriteAllText(vocabularyPath, string.Empty);
+    if (store.LoadVocabularyAsync(CancellationToken.None).GetAwaiter().GetResult() != string.Empty)
+        throw new InvalidOperationException("Empty vocabulary resurrected legacy terms.");
+    File.Delete(vocabularyPath);
+    if (store.LoadVocabularyAsync(CancellationToken.None).GetAwaiter().GetResult() != string.Empty)
+        throw new InvalidOperationException("Missing vocabulary did not recreate an empty file.");
+    File.WriteAllBytes(vocabularyPath, [0xff, 0xff]);
+    ImportVocabularyAudio(mainWindow, audioFixturePath);
+    WaitForElementNameContains(mainWindow, statusAutomationId, "Cannot read vocabulary file", TimeSpan.FromSeconds(30));
+    CaptureWindow(mainWindow, Path.Combine(evidenceDirectory, "vocabulary-read-failure.png"));
+    File.WriteAllText(vocabularyPath, editedVocabulary, new UTF8Encoding(false));
+    if (store.LoadVocabularyAsync(CancellationToken.None).GetAwaiter().GetResult() != editedVocabulary)
+        throw new InvalidOperationException("External vocabulary edits were not reloaded.");
+    File.WriteAllText(Path.Combine(evidenceDirectory, "vocabulary-result.txt"),
+        "Migration: PASS\nExternalEditPreserved: PASS\nEmptyFile: PASS\nMissingFile: PASS\nInvalidUtf8Failure: PASS\nReloadAfterRepair: PASS\n");
+}
+
+static void ImportVocabularyAudio(AutomationElement mainWindow, string audioFixturePath)
+{
+    FindByAutomationId(mainWindow, "OpenAudioFileButton").AsButton().Invoke();
+    Window fileDialog = WaitForNamedWindow(mainWindow, "Open audio file", TimeSpan.FromSeconds(10));
+    AutomationElement fileName = fileDialog.FindFirstDescendant(condition => condition.ByAutomationId("1148").And(
+        condition.ByControlType(FlaUI.Core.Definitions.ControlType.Edit)))
+        ?? throw new InvalidOperationException("Import filename field missing.");
+    fileName.AsTextBox().Enter(audioFixturePath);
+    AutomationElement openButton = fileDialog.FindFirstDescendant(condition => condition.ByAutomationId("1").And(
+        condition.ByControlType(FlaUI.Core.Definitions.ControlType.SplitButton).Or(
+            condition.ByControlType(FlaUI.Core.Definitions.ControlType.Button))))
+        ?? throw new InvalidOperationException("Import Open button missing.");
+    openButton.AsButton().Invoke();
 }
 
 static void PrepareLegacyNullSettings(string evidenceDirectory)
@@ -853,6 +958,23 @@ static Window WaitForNamedWindow(AutomationElement root, string name, TimeSpan t
         Thread.Sleep(100);
     }
     throw new TimeoutException($"Window named '{name}' was not available within {timeout}.");
+}
+
+static AutomationElement WaitForImportResult(AutomationElement root, TimeSpan timeout)
+{
+    Stopwatch stopwatch = Stopwatch.StartNew();
+    string? observed = null;
+    while (stopwatch.Elapsed < timeout)
+    {
+        AutomationElement? element = root.FindFirstDescendant(condition => condition.ByAutomationId(statusAutomationId));
+        observed = element?.Name;
+        if (observed?.Contains("Transcript ready", StringComparison.OrdinalIgnoreCase) is true) return element!;
+        if (observed == "Audio import is not ready" || observed == "Audio import cancelled" ||
+            observed?.Contains("The original file was kept.", StringComparison.OrdinalIgnoreCase) is true)
+            throw new InvalidOperationException($"Audio import failed: {observed}");
+        Thread.Sleep(100);
+    }
+    throw new TimeoutException($"Audio import did not complete within {timeout}. Last status: '{observed}'.");
 }
 
 static AutomationElement WaitForElementNameContains(AutomationElement root, string automationId, string fragment, TimeSpan timeout)
