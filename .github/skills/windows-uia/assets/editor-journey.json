@@ -1,0 +1,15 @@
+{
+  "timeoutSeconds": 30,
+  "requiresPaidService": false,
+  "application": {
+    "executable": "%WINDOWS_UIA_TARGET_EXE%",
+    "windowAutomationId": "TestTargetWindow",
+    "stopOwnedProcess": true
+  },
+  "steps": [
+    { "action": "assert", "automationId": "TargetEditor", "enabled": true },
+    { "action": "setValue", "automationId": "TargetEditor", "value": "Reusable Windows UIA verification." },
+    { "action": "assert", "automationId": "TargetEditor", "valueEquals": "Reusable Windows UIA verification." },
+    { "action": "capture" }
+  ]
+}

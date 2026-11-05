@@ -1,0 +1,9 @@
+{
+  "timeoutSeconds": 60,
+  "requiresPaidService": false,
+  "application": { "executable": "%WINDOWS_UIA_APP_EXE%", "windowAutomationId": "YourMainWindowId", "arguments": [], "stopOwnedProcess": true },
+  "steps": [
+    { "action": "assert", "automationId": "YourControlId", "enabled": true },
+    { "action": "capture" }
+  ]
+}

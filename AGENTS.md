@@ -4,6 +4,7 @@
 
 ## Primary operational skill
 
+- Use `.github/skills/windows-uia/SKILL.md` for Windows UI Automation inspection and GUI validation. It bundles an app-neutral FlaUI UIA3 engine, JSON journeys, evidence/lifecycle safeguards and the TalkToMe adapter. Load only the relevant references and reuse the scripts before writing new automation code.
 - Use `.github/skills/install-talk-to-me/SKILL.md` whenever installing, reinstalling, upgrading, or locally deploying TalkToMe.
 - The installer workflow must terminate every running `TalkToMe.App` process and verify none remain before launching the installer.
 

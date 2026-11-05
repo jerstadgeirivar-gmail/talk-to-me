@@ -1,0 +1,6 @@
+{
+  "timeoutSeconds": 10,
+  "requiresPaidService": false,
+  "application": { "executable": "%WINDOWS_UIA_TARGET_EXE%", "windowAutomationId": "TestTargetWindow", "stopOwnedProcess": true },
+  "steps": [ { "action": "wait", "automationId": "DeliberatelyMissingControl", "timeoutSeconds": 1 } ]
+}

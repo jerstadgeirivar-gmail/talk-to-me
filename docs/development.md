@@ -56,6 +56,27 @@ TALKTOME_WHISPER_MODEL_PATH
 
 ## Unattended validation
 
+### Reusable Windows UIA skill
+
+Use [windows-uia](../.github/skills/windows-uia/SKILL.md) before writing new Windows UI automation. This project-owned, progressively loaded skill packages an app-neutral .NET 10/FlaUI UIA3 engine, JSON journeys, evidence and process-ownership safeguards, templates and the TalkToMe adapter. The core has no TalkToMe project dependencies and can be copied with the whole skill folder into another repository. Root agent instructions route future GUI work to it. Detailed selectors/actions and app-specific service knowledge live in separate references rather than being loaded for every task.
+
+The scripts compile their bundled tool and emit structured JSON. Discovery and inspection are read-only; Run requires an explicit PID or executable. Attach never closes the target process. Launch cleanup stops only its created process tree. Modal dialogs need an explicit open declaration and close step. Names/values are omitted from default evidence; screenshots and UIA names require deliberate flags. Use a new ignored evidence directory each time.
+
+````powershell
+& .\.github\skills\windows-uia\scripts\validate-skill.ps1
+& .\.github\skills\windows-uia\scripts\invoke-uia.ps1 -Action Inspect -ProcessId <pid> -WindowAutomationId MainWindow -EvidenceDirectory artifacts\validation\uia-inspection -Screenshots
+& .\.github\skills\windows-uia\scripts\invoke-uia.ps1 -Action Run -ProcessId <pid> -ScenarioPath .\.github\skills\windows-uia\assets\talk-to-me-settings.json -EvidenceDirectory artifacts\validation\uia-settings
+& .\.github\skills\windows-uia\scripts\verify-live.ps1 -EditorExecutable tools\TalkToMe.TestTarget\bin\Debug\net10.0-windows\TalkToMe.TestTarget.exe -EvidenceDirectory artifacts\validation\uia-smoke
+````
+
+The TalkToMe adapter uses the existing driver rather than duplicating its audio/provider assertions. `invoke-talk-to-me.ps1` routes RecordOnly, Provider, Profiles, TokenLimit, AzureRepair, Vocabulary and Long journeys. Paid modes require `-TaskAllowsPaidRequests`, supplied only under current or already-applicable task authorization. Skill creation alone does not authorize paid transcription. The adapter blocks an already-running app by default; do not use `-StopRunningApplication` when active recording or unsaved work is at risk. Existing install/upgrade requests still require the dedicated installer skill. Long paid validation remains capped at two hours by the domain driver's preflight.
+
+Real no-cost validation on 2026-11-05 passed in `artifacts/validation/windows-uia-final-20261105`: real WPF editor value write/read assertions, absent-control timeout with retained FAIL evidence and owned cleanup, default name omission, a twelve-step attached TalkToMe Settings journey with actual ComboBox/tab/checkbox/Invoke patterns, attached process preservation, unchanged persisted settings SHA-256, paid-request blocking and running-app blocking. The expected timeout is a tested failure path, not a failed overall smoke check. `verification.json` records all seven checks. Earlier visible-window inspection and actual PrintWindow captures in `windows-uia-visible-20261105`, `windows-uia-editor-20261105-r2` and `windows-uia-settings-extended-20261105` were visually inspected and nonblank. Discovery exposed an initially tray-hidden app; normal single-instance activation showed it without changing the inspector to guess a window.
+
+Initial development failures exposed analyzer requirements for cached serializer options and non-throwing cleanup, plus unsupported AutomationId properties on some descendants; those were repaired and rerun through the same real journeys. The solution's newly discovered project registration was retained. Production app source, installed version, recordings and credentials were not modified by this skill work; the attached app remains running. Evidence and generated bin/obj outputs remain ignored.
+
+No Azure request, unit test, mock, fake executable or substitute service response was used to validate this skill. Paid domain journeys and the adapter's RecordOnly execution path were not rerun because the user app was already running; their authorization/ownership guards were tested, and the underlying driver journeys have earlier real evidence in this guide. Other frameworks, cross-process dialogs, actual stuck COM watchdog expiry, unsupported-pattern variations, elevation, protected/minimized capture and OS launch hangs remain unverified. Extend the core only for app-neutral behavior, adding a real integration journey for every change; keep service-specific behavior in adapters.
+
 Installer validation must use a separate Windows user or disposable environment. The installer has a stable per-user Inno Setup `AppId`; installing it into an `artifacts` directory under the same user rewrites that user's production uninstall and startup registration.
 
 For an intentional local install or upgrade of the current user's production copy, follow `.github/skills/install-talk-to-me/SKILL.md`. Its installer script always terminates all `TalkToMe.App` instances and verifies they are gone before setup starts.

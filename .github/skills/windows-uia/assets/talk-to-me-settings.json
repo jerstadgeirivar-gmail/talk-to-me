@@ -1,0 +1,19 @@
+{
+  "timeoutSeconds": 60,
+  "requiresPaidService": false,
+  "application": { "windowAutomationId": "MainWindow", "stopOwnedProcess": false },
+  "steps": [
+    { "action": "assert", "automationId": "SettingsButton", "enabled": true },
+    { "action": "invoke", "automationId": "SettingsButton", "opensWindowAutomationId": "SettingsWindow" },
+    { "action": "wait", "windowAutomationId": "SettingsWindow", "automationId": "ProviderSelector", "enabled": true },
+    { "action": "select", "windowAutomationId": "SettingsWindow", "automationId": "ProviderSelector", "value": "Azure OpenAI" },
+    { "action": "assert", "windowAutomationId": "SettingsWindow", "automationId": "EndpointProfileSelector", "enabled": true },
+    { "action": "select", "windowAutomationId": "SettingsWindow", "automationId": "DictationTab" },
+    { "action": "toggle", "windowAutomationId": "SettingsWindow", "automationId": "RetainFailedAudioCheckBox", "checked": false },
+    { "action": "assert", "windowAutomationId": "SettingsWindow", "automationId": "RetainFailedAudioCheckBox", "checked": false },
+    { "action": "select", "windowAutomationId": "SettingsWindow", "automationId": "TranscriptionTab" },
+    { "action": "capture", "windowAutomationId": "SettingsWindow" },
+    { "action": "invoke", "windowAutomationId": "SettingsWindow", "automationId": "CloseSettingsButton" },
+    { "action": "assert", "automationId": "SettingsButton", "enabled": true }
+  ]
+}
