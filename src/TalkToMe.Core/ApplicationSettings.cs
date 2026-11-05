@@ -14,6 +14,10 @@ public sealed record ApplicationSettings
 
     public string AzureApiVersion { get; init; } = "2025-04-01-preview";
 
+    public List<TranscriptionEndpointProfile> TranscriptionEndpoints { get; init; } = [];
+
+    public string? SelectedTranscriptionEndpointId { get; init; }
+
     public string LmStudioBaseUrl { get; init; } = "http://localhost:1234";
 
     public string LmStudioModel { get; init; } = string.Empty;

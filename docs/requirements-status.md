@@ -6,7 +6,7 @@
 | File-backed audio pipeline | Verified | Slice B; paced NAudio decode, shared frames, valid WAV |
 | Real WASAPI source | Implemented, pending device test | Same frame boundary; physical microphone and device invalidation not exercised |
 | Local Whisper provider | Live verified | Whisper.net 1.9.1 CPU, pinned multilingual small-q5_1, real Norwegian fixture and transcript screenshot |
-| Azure REST provider | Contract-verified, live blocked | Existing tests pass; no endpoint/deployment/credential is available locally |
+| Azure REST provider | Live verified; compatible routes partially verified | Real configured Azure transcription and HTTP 404 repair/retry passed. Named endpoint profiles and isolated DPAPI credentials are implemented; non-Azure compatible services have not been live tested. |
 | LM Studio provider | Honest capability verified | Installed app found; server could not be made reachable; official 0.4 API has no STT and adapter sent no audio |
 | Ollama provider | Honest capability verified | Live Ollama 0.31.1 reachable; official API has no STT and adapter sent no audio |
 | Norwegian transcript in UI | Live Local verified | 24-second production WAV produced non-empty semantically stable Norwegian text |
@@ -19,5 +19,5 @@
 | Overlay | Not complete | Main status window is accessible but is not a non-activating multi-monitor overlay |
 | Settings breadth | Provider feature verified | Tabbed conditional provider UI, readiness/capability test, repair, accessibility IDs, protected fields; microphone editor remains incomplete |
 | Startup registration | Not complete | Setting is persisted but registry/startup task is not applied |
-| Audio size hardening | Not complete | Provider rejects over 25 MB; warning/compression/segmentation absent |
+| Audio size hardening | Two-hour Debug and short installed journeys verified | Version 1.0.21 supports configurable model-aware PCM segments, silence/overlap handling, cancellation, encrypted opt-in restart progress and adaptive output-budget reduction. Exact two-hour real audio covered without gaps in submitted ranges; original preserved. Installed profile/token-reduction/resume and Azure repair passed. Exhaustive recognition accuracy and longer files remain unverified; see [ADR 002](adr/002-audio-format.md#current-decision-bounded-pcm-segments). |
 | Packaging | Verified | Model absent from publish/install; 55,960,288-byte installer; installed first-run consent/progress/verified setup and live transcription pass |

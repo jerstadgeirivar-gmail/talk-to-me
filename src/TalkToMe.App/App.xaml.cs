@@ -15,6 +15,12 @@ public partial class App : System.Windows.Application, IDisposable
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        DispatcherUnhandledException += (_, eventArgs) => RuntimeDiagnostics.Failure("application.unhandled", eventArgs.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+        {
+            if (eventArgs.ExceptionObject is Exception exception)
+                RuntimeDiagnostics.Failure("application.fatal", exception);
+        };
 
         _singleInstance = new SingleInstanceCoordinator();
         if (!_singleInstance.IsPrimary)
@@ -51,6 +57,10 @@ public partial class App : System.Windows.Application, IDisposable
         }
 
         ApplicationSettings settings = await settingsStore.LoadAsync(CancellationToken.None);
+        RuntimeDiagnostics.Configure(
+            diagnosticDataDirectory is null ? null : Path.Combine(diagnosticDataDirectory, "Diagnostics"),
+            settings.DiagnosticLoggingLevel);
+        RuntimeDiagnostics.Write("application.started", new { version = typeof(App).Assembly.GetName().Version?.ToString() });
         IAudioSource audioSource = options.DiagnosticAudioPath is null
             ? new WasapiMicrophoneAudioSource()
             : new FileBackedAudioSource(
@@ -133,6 +143,7 @@ public partial class App : System.Windows.Application, IDisposable
 
     protected override void OnExit(ExitEventArgs e)
     {
+        RuntimeDiagnostics.Write("application.exited", new { e.ApplicationExitCode });
         Dispose();
         base.OnExit(e);
     }

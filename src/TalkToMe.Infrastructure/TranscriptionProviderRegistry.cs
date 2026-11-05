@@ -75,9 +75,13 @@ public sealed class TranscriptionProviderRegistry(
 
     private async Task<ITranscriptionProvider> CreateAzureAsync(ApplicationSettings settings, CancellationToken cancellationToken)
     {
-        string? key = await secretStore.GetSecretAsync(TranscriptionProviderIds.AzureOpenAi, cancellationToken);
         AzureTranscriptionOptions? options;
-        try { options = AzureTranscriptionOptions.FromConfiguration(settings, key); }
+        try
+        {
+            TranscriptionEndpointProfile profile = AzureTranscriptionOptions.ResolveProfile(settings);
+            string? key = await secretStore.GetSecretAsync(profile.CredentialId, cancellationToken);
+            options = AzureTranscriptionOptions.FromConfiguration(settings, key);
+        }
         catch (ArgumentException exception)
         {
             throw new TranscriptionException(TranscriptionFailureCategory.InvalidConfiguration, exception.Message, innerException: exception);
@@ -92,10 +96,11 @@ public sealed class TranscriptionProviderRegistry(
 
     private async Task<ProviderTestResult> TestAzureAsync(ApplicationSettings settings, CancellationToken cancellationToken)
     {
-        string? key = await secretStore.GetSecretAsync(TranscriptionProviderIds.AzureOpenAi, cancellationToken);
         AzureTranscriptionOptions? options;
         try
         {
+            TranscriptionEndpointProfile profile = AzureTranscriptionOptions.ResolveProfile(settings);
+            string? key = await secretStore.GetSecretAsync(profile.CredentialId, cancellationToken);
             options = AzureTranscriptionOptions.FromConfiguration(settings, key);
         }
         catch (ArgumentException exception) { return new(ProviderReadiness.InvalidConfiguration, exception.Message); }

@@ -30,6 +30,7 @@ public partial class SettingsWindow : Window, IDisposable
 
     private async void SaveSettings(object sender, RoutedEventArgs e)
     {
+        if (HasValidationErrors(this)) { _viewModel.ShowValidationError("Correct the invalid numeric limits before saving."); return; }
         bool saved = await _viewModel.SaveAsync(
             ApiKeyPasswordBox.Password,
             LmStudioTokenPasswordBox.Password,
@@ -47,12 +48,13 @@ public partial class SettingsWindow : Window, IDisposable
 
     private async void RemoveAzureKey(object sender, RoutedEventArgs e)
     {
-        await _viewModel.RemoveSecretAsync(TalkToMe.Core.TranscriptionProviderIds.AzureOpenAi, CancellationToken.None);
+        await _viewModel.RemoveSecretAsync(_viewModel.ActiveEndpointCredentialId, CancellationToken.None);
         ApiKeyPasswordBox.Clear();
     }
 
     private async void TestProvider(object sender, RoutedEventArgs e)
     {
+        if (HasValidationErrors(this)) { _viewModel.ShowValidationError("Correct the invalid numeric limits before testing."); return; }
         _operationCancellation?.Cancel();
         _operationCancellation = new CancellationTokenSource();
         await _viewModel.TestProviderAsync(_operationCancellation.Token);
@@ -66,6 +68,20 @@ public partial class SettingsWindow : Window, IDisposable
     }
 
     private void CancelOperation(object sender, RoutedEventArgs e) => _operationCancellation?.Cancel();
+
+    private void AddEndpoint(object sender, RoutedEventArgs e) { ApiKeyPasswordBox.Clear(); _viewModel.AddEndpoint(false); }
+    private void DuplicateEndpoint(object sender, RoutedEventArgs e) { ApiKeyPasswordBox.Clear(); _viewModel.AddEndpoint(true); }
+    private void RemoveEndpoint(object sender, RoutedEventArgs e) { ApiKeyPasswordBox.Clear(); _viewModel.RemoveEndpoint(); }
+    private void SelectEndpoint(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => ApiKeyPasswordBox.Clear();
+    private async void ClearProgress(object sender, RoutedEventArgs e) => await _viewModel.ClearProgressAsync();
+
+    private static bool HasValidationErrors(DependencyObject element)
+    {
+        if (System.Windows.Controls.Validation.GetHasError(element)) return true;
+        for (int index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(element); index++)
+            if (HasValidationErrors(System.Windows.Media.VisualTreeHelper.GetChild(element, index))) return true;
+        return false;
+    }
 
     private async void EditVocabulary(object sender, RoutedEventArgs e) =>
         await _viewModel.EditVocabularyAsync(CancellationToken.None);

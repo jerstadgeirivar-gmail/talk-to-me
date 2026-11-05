@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using TalkToMe.Core;
@@ -22,9 +23,58 @@ public sealed class SettingsWindowViewModel(
     private bool _retainFailedAudio, _startWithWindows, _clipboardOnlyMode, _voiceCommandsEnabled, _isBusy;
     private string _azureSecretStatus = "Not configured", _lmStudioSecretStatus = "Not configured", _ollamaSecretStatus = "Not configured";
     private string _providerStatus = "Not tested", _statusText = string.Empty, _progressText = string.Empty;
+    private string? _selectedEndpointId;
+    private string _endpointName = "New endpoint";
+    private int _maximumOutputTokens = 2000, _estimatedTokensPerMinute = 600, _maximumSegmentSeconds = 300, _requestTimeoutSeconds = 600;
+    private long _maximumUploadBytes = 24_000_000;
+    private bool _openAiCompatibleRoute, _bearerAuthentication, _retainProgress, _changingEndpoint;
+    private readonly List<string> _removedCredentialIds = [];
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public IReadOnlyList<TranscriptionProviderDescriptor> Providers => providerFactory.Providers;
+    public ObservableCollection<TranscriptionEndpointItem> EndpointProfiles { get; } = [];
+    public bool CanRemoveEndpoint => EndpointProfiles.Count > 1;
+    public string? SelectedEndpointId
+    {
+        get => _selectedEndpointId;
+        set
+        {
+            if (_changingEndpoint || value == _selectedEndpointId) return;
+            _changingEndpoint = true;
+            try
+            {
+                CaptureEndpointDraft();
+                _selectedEndpointId = value;
+                TranscriptionEndpointProfile? selected = EndpointProfiles.FirstOrDefault(profile => profile.Id == value)?.Profile;
+                if (selected is not null)
+                {
+                    EndpointName = selected.Name; AzureEndpoint = selected.Endpoint; AzureDeployment = selected.Deployment; AzureApiVersion = selected.ApiVersion;
+                    MaximumOutputTokens = selected.MaximumOutputTokens; EstimatedTokensPerMinute = selected.EstimatedTokensPerMinute;
+                    MaximumSegmentSeconds = selected.MaximumSegmentSeconds; MaximumUploadBytes = selected.MaximumUploadBytes;
+                    RequestTimeoutSeconds = selected.RequestTimeoutSeconds; OpenAiCompatibleRoute = selected.OpenAiCompatibleRoute;
+                    BearerAuthentication = selected.BearerAuthentication; RetainProgress = selected.RetainProgress;
+                }
+                OnPropertyChanged(nameof(SelectedEndpointId));
+                OnPropertyChanged(nameof(ActiveEndpointCredentialId));
+                ProviderStatus = "Not tested";
+                _ = RefreshEndpointCredentialAsync();
+            }
+            finally { _changingEndpoint = false; }
+        }
+    }
+    public string ActiveEndpointCredentialId => EndpointProfiles.FirstOrDefault(profile => profile.Id == SelectedEndpointId)?.CredentialId
+        ?? TranscriptionProviderIds.AzureOpenAi;
+    public string EndpointName { get => _endpointName; set => SetProperty(ref _endpointName, value); }
+    public int MaximumOutputTokens { get => _maximumOutputTokens; set { if (SetProperty(ref _maximumOutputTokens, value)) OnPropertyChanged(nameof(SegmentPlanText)); } }
+    public int EstimatedTokensPerMinute { get => _estimatedTokensPerMinute; set { if (SetProperty(ref _estimatedTokensPerMinute, value)) OnPropertyChanged(nameof(SegmentPlanText)); } }
+    public int MaximumSegmentSeconds { get => _maximumSegmentSeconds; set { if (SetProperty(ref _maximumSegmentSeconds, value)) OnPropertyChanged(nameof(SegmentPlanText)); } }
+    public long MaximumUploadBytes { get => _maximumUploadBytes; set { if (SetProperty(ref _maximumUploadBytes, value)) OnPropertyChanged(nameof(SegmentPlanText)); } }
+    public int RequestTimeoutSeconds { get => _requestTimeoutSeconds; set => SetProperty(ref _requestTimeoutSeconds, value); }
+    public bool OpenAiCompatibleRoute { get => _openAiCompatibleRoute; set => SetProperty(ref _openAiCompatibleRoute, value); }
+    public bool BearerAuthentication { get => _bearerAuthentication; set => SetProperty(ref _bearerAuthentication, value); }
+    public bool RetainProgress { get => _retainProgress; set => SetProperty(ref _retainProgress, value); }
+    public string SegmentPlanText => EstimatedTokensPerMinute <= 0 ? "Invalid limits" :
+        $"{Math.Max(0, Math.Min(Math.Min(MaximumSegmentSeconds, MaximumOutputTokens * 0.75 / EstimatedTokensPerMinute * 60), (MaximumUploadBytes - 4096) / 32000d)):N1} seconds";
     public IReadOnlyList<TranscriptionLanguageOption> TranscriptionLanguages { get; } =
     [
         new(TranscriptionLanguageModes.Auto, "Auto"),
@@ -72,7 +122,10 @@ public sealed class SettingsWindowViewModel(
             settings = settings with { TranscriptionProviderId = SelectedProviderId };
             await settingsStore.SaveAsync(settings, cancellationToken);
         }
-        AzureEndpoint = settings.AzureEndpoint; AzureDeployment = settings.AzureDeployment; AzureApiVersion = settings.AzureApiVersion;
+        foreach (TranscriptionEndpointProfile profile in settings.TranscriptionEndpoints) EndpointProfiles.Add(new TranscriptionEndpointItem(profile));
+        if (EndpointProfiles.Count == 0) EndpointProfiles.Add(new TranscriptionEndpointItem(new TranscriptionEndpointProfile { Id = TranscriptionEndpointProfile.LegacyId, Name = "Azure endpoint" }));
+        SelectedEndpointId = settings.SelectedTranscriptionEndpointId ?? EndpointProfiles[0].Id;
+        OnPropertyChanged(nameof(CanRemoveEndpoint));
         LmStudioBaseUrl = settings.LmStudioBaseUrl; LmStudioModel = settings.LmStudioModel;
         OllamaBaseUrl = settings.OllamaBaseUrl; OllamaModel = settings.OllamaModel;
         TranscriptionLanguageMode = settings.TranscriptionLanguageMode;
@@ -80,7 +133,7 @@ public sealed class SettingsWindowViewModel(
         StartWithWindows = settings.StartWithWindows; ClipboardOnlyMode = settings.ClipboardOnlyMode;
         TargetWindowPolicy = settings.TargetWindowPolicy; Hotkey = settings.Hotkey;
         VoiceCommandsEnabled = settings.VoiceCommandsEnabled ?? false; DiagnosticLoggingLevel = settings.DiagnosticLoggingLevel;
-        AzureSecretStatus = hasAzure ? "Configured" : "Not configured";
+        await RefreshEndpointCredentialAsync();
         LmStudioSecretStatus = await secretStore.HasSecretAsync(TranscriptionProviderIds.LmStudio, cancellationToken) ? "Configured" : "Not configured";
         OllamaSecretStatus = await secretStore.HasSecretAsync(TranscriptionProviderIds.Ollama, cancellationToken) ? "Configured" : "Not configured";
         ProviderStatus = "Not tested.";
@@ -97,9 +150,11 @@ public sealed class SettingsWindowViewModel(
             return false;
         }
         applyFailedAudioRetention(RetainFailedAudio);
-        await SaveSecretAsync(TranscriptionProviderIds.AzureOpenAi, azureKey, value => AzureSecretStatus = value, cancellationToken);
+        await SaveSecretAsync(ActiveEndpointCredentialId, azureKey, value => AzureSecretStatus = value, cancellationToken);
         await SaveSecretAsync(TranscriptionProviderIds.LmStudio, lmStudioToken, value => LmStudioSecretStatus = value, cancellationToken);
         await SaveSecretAsync(TranscriptionProviderIds.Ollama, ollamaToken, value => OllamaSecretStatus = value, cancellationToken);
+        foreach (string credentialId in _removedCredentialIds) await secretStore.RemoveSecretAsync(credentialId, cancellationToken);
+        _removedCredentialIds.Clear();
         await applyProvider(SelectedProviderId, cancellationToken);
         bool voiceReady = applyVoiceCommands(VoiceCommandsEnabled);
         StatusText = voiceReady ? "Settings saved. Provider changes apply to the next transcription."
@@ -114,6 +169,7 @@ public sealed class SettingsWindowViewModel(
         try
         {
             await SaveConfigurationAsync(cancellationToken);
+            await applyProvider(SelectedProviderId, cancellationToken);
             ProviderTestResult result = await providerFactory.TestAsync(SelectedProviderId, cancellationToken);
             ProviderStatus = result.Message;
         }
@@ -138,7 +194,7 @@ public sealed class SettingsWindowViewModel(
     public async Task RemoveSecretAsync(string providerId, CancellationToken cancellationToken)
     {
         await secretStore.RemoveSecretAsync(providerId, cancellationToken);
-        if (providerId == TranscriptionProviderIds.AzureOpenAi) AzureSecretStatus = "Not configured";
+        if (providerId == ActiveEndpointCredentialId) AzureSecretStatus = "Not configured";
         else if (providerId == TranscriptionProviderIds.LmStudio) LmStudioSecretStatus = "Not configured";
         else if (providerId == TranscriptionProviderIds.Ollama) OllamaSecretStatus = "Not configured";
         StatusText = "Protected credential removed.";
@@ -165,6 +221,9 @@ public sealed class SettingsWindowViewModel(
     private async Task SaveConfigurationAsync(CancellationToken cancellationToken)
     {
         ApplicationSettings current = await settingsStore.LoadAsync(cancellationToken);
+        _changingEndpoint = true;
+        try { CaptureEndpointDraft(); }
+        finally { _changingEndpoint = false; OnPropertyChanged(nameof(SelectedEndpointId)); }
         await settingsStore.SaveAsync(new ApplicationSettings
         {
             TranscriptionProviderId = SelectedProviderId,
@@ -172,6 +231,8 @@ public sealed class SettingsWindowViewModel(
             AzureEndpoint = AzureEndpoint.Trim(),
             AzureDeployment = AzureDeployment.Trim(),
             AzureApiVersion = AzureApiVersion.Trim(),
+            TranscriptionEndpoints = EndpointProfiles.Select(item => item.Profile).ToList(),
+            SelectedTranscriptionEndpointId = SelectedEndpointId,
             LmStudioBaseUrl = LmStudioBaseUrl.Trim(),
             LmStudioModel = LmStudioModel.Trim(),
             OllamaBaseUrl = OllamaBaseUrl.Trim(),
@@ -186,6 +247,7 @@ public sealed class SettingsWindowViewModel(
             VoiceCommandsEnabled = VoiceCommandsEnabled,
             DiagnosticLoggingLevel = DiagnosticLoggingLevel,
         }, cancellationToken);
+        RuntimeDiagnostics.SetLevel(DiagnosticLoggingLevel);
     }
 
     private async Task SaveSecretAsync(string id, string value, Action<string> update, CancellationToken token)
@@ -208,15 +270,91 @@ public sealed class SettingsWindowViewModel(
         {
             if (IsAzure)
             {
-                if (!Uri.TryCreate(AzureEndpoint, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps)
-                    throw new ArgumentException("The Azure endpoint must be a valid HTTPS address.");
-                if (string.IsNullOrWhiteSpace(AzureDeployment)) throw new ArgumentException("Azure deployment is required.");
+                CreateEndpointDraft().Validate();
             }
             if (IsLmStudio) TranscriptionProviderRegistry.ValidateServerUri(LmStudioBaseUrl, "LM Studio");
             if (IsOllama) TranscriptionProviderRegistry.ValidateServerUri(OllamaBaseUrl, "Ollama");
             return true;
         }
         catch (Exception exception) { StatusText = exception.Message; return false; }
+    }
+
+    public void AddEndpoint(bool duplicate)
+    {
+        if (EndpointProfiles.Count >= 32) { StatusText = "At most 32 endpoint profiles can be registered."; return; }
+        TranscriptionEndpointProfile profile = duplicate ? CreateEndpointDraft() with
+        {
+            Id = Guid.NewGuid().ToString("N"), Name = EndpointName + " copy",
+        } : new TranscriptionEndpointProfile();
+        EndpointProfiles.Add(new TranscriptionEndpointItem(profile));
+        SelectedEndpointId = profile.Id;
+        OnPropertyChanged(nameof(CanRemoveEndpoint));
+        StatusText = string.Empty;
+    }
+
+    public void RemoveEndpoint()
+    {
+        if (!CanRemoveEndpoint) return;
+        TranscriptionEndpointItem? selected = EndpointProfiles.FirstOrDefault(profile => profile.Id == SelectedEndpointId);
+        if (selected is null) return;
+        _changingEndpoint = true;
+        try
+        {
+            _removedCredentialIds.Add(selected.CredentialId);
+            EndpointProfiles.Remove(selected);
+            _selectedEndpointId = null;
+        }
+        finally { _changingEndpoint = false; }
+        SelectedEndpointId = EndpointProfiles[0].Id;
+        OnPropertyChanged(nameof(CanRemoveEndpoint));
+    }
+
+    public async Task ClearProgressAsync()
+    {
+        try
+        {
+            TranscriptionEndpointProfile selected = CreateEndpointDraft();
+            selected.Validate();
+            string directory = Path.Combine(Path.GetDirectoryName(RuntimeDiagnostics.LogPath)!, "TranscriptionJobs", selected.Id);
+            if (Directory.Exists(directory))
+                foreach (string path in Directory.EnumerateFiles(directory, "*.bin")) File.Delete(path);
+            StatusText = "Saved transcription progress cleared for this endpoint.";
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            StatusText = $"Could not clear saved progress: {exception.Message}";
+        }
+        await Task.CompletedTask;
+    }
+
+    public void ShowValidationError(string message) => StatusText = message;
+
+    private TranscriptionEndpointProfile CreateEndpointDraft() => new()
+    {
+        Id = SelectedEndpointId ?? TranscriptionEndpointProfile.LegacyId, Name = EndpointName.Trim(),
+        Endpoint = AzureEndpoint.Trim(), Deployment = AzureDeployment.Trim(), ApiVersion = AzureApiVersion.Trim(),
+        MaximumOutputTokens = MaximumOutputTokens, EstimatedTokensPerMinute = EstimatedTokensPerMinute,
+        MaximumSegmentSeconds = MaximumSegmentSeconds, MaximumUploadBytes = MaximumUploadBytes,
+        RequestTimeoutSeconds = RequestTimeoutSeconds, OpenAiCompatibleRoute = OpenAiCompatibleRoute,
+        BearerAuthentication = BearerAuthentication, RetainProgress = RetainProgress,
+    };
+
+    private void CaptureEndpointDraft()
+    {
+        for (int index = 0; index < EndpointProfiles.Count; index++)
+            if (EndpointProfiles[index].Id == SelectedEndpointId) { EndpointProfiles[index].Update(CreateEndpointDraft()); break; }
+    }
+
+    private async Task RefreshEndpointCredentialAsync()
+    {
+        string credentialId = ActiveEndpointCredentialId;
+        AzureSecretStatus = "Not configured";
+        try
+        {
+            bool exists = await secretStore.HasSecretAsync(credentialId, CancellationToken.None);
+            if (credentialId == ActiveEndpointCredentialId) AzureSecretStatus = exists ? "Configured" : "Not configured";
+        }
+        catch (ArgumentException) { AzureSecretStatus = "Invalid profile"; }
     }
 
     private void RaiseProviderProperties()
@@ -232,4 +370,20 @@ public sealed class SettingsWindowViewModel(
 public sealed record TranscriptionLanguageOption(string Id, string DisplayName)
 {
     public override string ToString() => DisplayName;
+}
+
+public sealed class TranscriptionEndpointItem(TranscriptionEndpointProfile profile) : INotifyPropertyChanged
+{
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public TranscriptionEndpointProfile Profile { get; private set; } = profile;
+    public string Id => Profile.Id;
+    public string Name => Profile.Name;
+    public string CredentialId => Profile.CredentialId;
+    public override string ToString() => Name;
+
+    public void Update(TranscriptionEndpointProfile value)
+    {
+        Profile = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+    }
 }

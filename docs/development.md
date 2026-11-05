@@ -96,6 +96,64 @@ No vocabulary accuracy comparison, maximum-token boundary, Local Whisper transcr
 
 ## Packaged validation record
 
+### Endpoint profiles and PCM segmentation, version 1.0.21
+
+Version 1.0.21 replaces whole-file MP3 preparation with configured PCM segmentation and adds a first-class endpoint registry in Settings. Each profile owns its limits, route/authentication choices and DPAPI credential; duplication does not duplicate credentials. Existing Azure fields/key migrate into a legacy-compatible profile. Settings saves apply to the next job without waiting for an active transcription. See [configuration](configuration.md#registered-transcription-endpoints) for exact defaults, planning formula and checkpoint privacy.
+
+The exact two-hour real LibriVox audiobook excerpt completed in the Debug app through the user's configured Azure service. Evidence is `artifacts/validation/segmentation-two-hours-debug-20261105`: 7,200 seconds of submitted audio coverage without gaps, 49 completed segments, two completed segments reused after cancellation/restart, 50 requests started including the interrupted request, maximum upload 4,796,846 bytes, 108,066 transcript characters, unchanged source hash, DPAPI-protected progress, successful cleanup and transcript/key-free logs. The source is `artifacts/validation/public-domain-audio/pride-and-prejudice-two-hours.wav`; it contains genuine human speech, not repeated short audio. The ready-window screenshot and endpoint editor screenshot were inspected. This is bounded-process and source-coverage evidence, not an exhaustive transcription-accuracy benchmark.
+
+The shorter dense-speech journey in `artifacts/validation/segmentation-progress-debug-20261105` additionally exercised actual returned token usage exceeding the configured budget, adaptive subdivision, cancellation and encrypted restart recovery. Visible progress retains segment number and audio position while sending and waiting. No unit tests, mocks, fake executables or simulated service responses were used.
+
+The self-contained win-x64 1.0.21 installer was built with Inno Setup 6 and installed using the required stop/query/install script. SHA-256: `C212E09DB74290C82E1EAE79FAD18D286117C04AF657A0C8421DD730C7E8FF16`. `artifacts/validation/segmentation-install-1.0.21.log` confirms success without a Windows restart and the installed executable reports 1.0.21. Short installed-binary journeys passed in `segmentation-profile-installed-20261105` (profile registry, credential isolation, token-budget reduction, cancellation/restart, nonempty real transcript, source integrity and privacy), `segmentation-azure-repair-installed-20261105` (real HTTP 404, Settings repair and Retry), and `segmentation-provider-installed-20261105-r3` (real saved-settings/key readiness test). Independent normal launch in `segmentation-normal-installed-20261105` was responsive, displayed recovered audio, and successfully invoked the diagnostics-folder action. The installed app was left open.
+
+The first normal-provider driver checks rejected the new intentional scrolling layout and then used an incorrect selector automation ID. Those test assertions were repaired, not hidden; earlier failed evidence remains under `segmentation-provider-installed-20261105` and `-r2`. The successful check now asserts enabled provider/profile/test/save controls instead of forbidding scrolling. Product profile selection and the editor's visible content were inspected in real screenshots.
+
+Repeat focused checks with fresh evidence directories, no competing app instance, and real endpoint credentials:
+
+```powershell
+dotnet build TalkToMe.sln -c Debug
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- <app.exe> <real-dense-chapter.mp3> artifacts\validation\segment-recovery --segmentation-token-limit
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- <app.exe> <exact-two-hour.wav> artifacts\validation\segment-two-hours --segmentation-long
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- <app.exe> _init\norwegian-audio-speech-test.mp3 artifacts\validation\segment-azure-repair --azure-error-retry
+```
+
+The two-hour paid run was executed once against Debug. Installed validation deliberately used the shorter chapter and readiness/failure clips rather than repeating two-hour billing. The seven-hour source remains an interrupted run, not a successful full-file test. Non-Azure compatible services, endpoint-specific retirement/context contracts, exhaustive word/boundary accuracy, microphone capture, clipboard insertion, disk-full/permission recovery, live HTTP 429/timeout retry, files longer than two hours and automatic-update restart were not exercised for this change. Providers without output usage or a truncation signal cannot be certified complete solely from nonempty text. Keep these limitations explicit when reporting validation.
+
+### Validation cost ceiling, 2026-11-05
+
+Long paid transcription validation is capped at two hours per input. The `--segmentation-long` driver checks decoded duration before writing isolated credentials, launching TalkToMe, or sending Azure requests, and rejects files longer than two hours. This is a validation cost guard, not a production limit on supported recording length.
+
+The earlier `artifacts/validation/segmentation-multihour-debug-20261105` run used a 7:09:55.6 public-domain audiobook and was stopped at the user's request. All app and driver processes were terminated. Its retained runtime events show 60 requests started and 59 completed segments, with the last completed interval ending at 8,772 seconds (2:26:12). Cancellation cannot guarantee that an already-submitted request incurs no charge. This interrupted run is not a completed seven-hour end-to-end validation, and its billable portions should not be repeated unnecessarily.
+
+Offline extraction through the existing NAudio dependency created `artifacts/validation/public-domain-audio/pride-and-prejudice-two-hours.wav`: exactly 7,200 seconds, 230,400,046 bytes, with zero Azure requests. The original M4B was preserved. The extraction command refuses durations above two hours and refuses to overwrite existing files:
+
+```powershell
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- --extract-audio <source-audio> <new-output.wav> 7200
+```
+
+The actual seven-hour source was then rejected by the long-validation preflight with exit code 2 and no app launch. At the cost-correction checkpoint, the two-hour excerpt was prepared but not transcribed. After the user explicitly requested completion, one exact two-hour Debug journey was run successfully, as recorded above. No seven-hour job was resumed and no two-hour run was repeated against the installed binary.
+
+### Long-audio recovery and diagnostics, 2026-11-05
+
+The real retained 13:08.28 recording reproduced the version 1.0.19 failure before any Azure request: the requested 32 kbit/s native MP3 format was unavailable. The fixed Debug build negotiated 48 kbit/s, reduced 25,225,006 bytes to 4,730,615 bytes, and received a nonempty 3,604-character transcript. The original WAV and its existing copy were preserved. Private transcripts and screenshots are kept only under ignored `artifacts/validation`; do not commit them.
+
+Real Debug journeys passed in `artifacts/validation/transcription-diagnostics-debug-20261105`, `transcription-retry-debug-final-20261105`, and `transcription-azure-error-debug-20261105`. These cover the original long recording, invalid UTF-8 vocabulary failure and repair followed by Retry, and an actual Azure HTTP 404 for an isolated nonexistent deployment followed by Settings repair and Retry. Source SHA-256 remained unchanged; log checks excluded the protected key and full transcript and required failure/completion events. Screenshots of the ready transcript and both failure messages were inspected. The solution builds without warnings; no unit tests or test doubles were run.
+
+Version `1.0.20` was published self-contained, packaged with Inno Setup 6, and installed into `%LOCALAPPDATA%\Programs\TalkToMe` using the mandatory stop/verify/install script. Installer SHA-256: `106BCC27215C7CCDA8F0E65159DB0F1864DD0827AF34071996FF226CD8A4DD80`. The installer log at `artifacts/validation/transcription-install-1.0.20.log` confirms success without a Windows restart. The same long-audio/vocabulary Retry and short-audio/Azure HTTP 404 repair journeys passed against the exact installed binary in `artifacts/validation/transcription-retry-installed-20261105` and `transcription-azure-error-installed-20261105`; source hash and log privacy checks passed again.
+
+Normal installed launch was independently inspected in `artifacts/validation/transcription-normal-installed-20261105`. The diagnostics button opened an actual Explorer window at `%LOCALAPPDATA%\TalkToMe\Diagnostics`. A normal real configured import then returned 3,647 characters, left the installed app responsive and open with the transcript visible, and saved its text/screenshot/UIA evidence in `artifacts/validation/transcription-ready-installed-20261105`. Both existing WAVs remained present with SHA-256 `A1692FB39B72393C58D23E5A28836119C70A03247A9BA92F06C87A7E8DC3897E`. Transcript text varies across independent Azure requests; the 3,604-character count above refers to the first successful recovery. No commit or push was made.
+
+Repeat with a fresh evidence directory and no other app instance:
+
+```powershell
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- <app.exe> <actual-long.wav> artifacts\validation\long-audio-retry --vocabulary-retry
+dotnet run --project tools\TalkToMe.UiDriver\TalkToMe.UiDriver.csproj --no-build -- <app.exe> _init\norwegian-audio-speech-test.mp3 artifacts\validation\azure-error-retry --azure-error-retry
+```
+
+These modes copy real Azure settings and the protected credential into isolated data directories. The first validates existing vocabulary migration/read failure/recovery and then invokes Retry on the same imported audio; the second requests an intentionally nonexistent deployment without creating or changing any Azure resources, repairs it through Settings, and retries. The production settings and vocabulary are not modified. Normal small-audio success also exercises the compression bypass. Logs in each isolated `data/Diagnostics` directory contain the real Azure request IDs and stage timings.
+
+To leave a normally launched app open with a recovered transcript, use `--inspect-running <evidence-directory> --import-audio <actual-audio-path>`. This attaches to the existing process, imports through its real file picker, verifies a nonempty transcript and unchanged source hash, and saves evidence without closing the app. `--inspect-running <evidence-directory> --open-diagnostics` invokes the diagnostics-folder button. No microphone capture, clipboard insertion, Local Whisper fallback, unavailable Media Features, request timeout/rate-limit, or automatic-update restart was exercised in this change.
+
 The 2026-09-17 packaged validation used version `1.0.14`:
 
 ```powershell

@@ -91,11 +91,26 @@ public sealed partial class JsonApplicationSettingsStore(string? settingsFile = 
             return defaults;
         }
 
+        List<TranscriptionEndpointProfile> endpoints = settings.TranscriptionEndpoints ?? [];
+        if (endpoints.Count == 0 && !string.IsNullOrWhiteSpace(settings.AzureEndpoint))
+        {
+            endpoints = [new TranscriptionEndpointProfile
+            {
+                Id = TranscriptionEndpointProfile.LegacyId,
+                Name = "Existing Azure endpoint",
+                Endpoint = settings.AzureEndpoint,
+                Deployment = settings.AzureDeployment ?? string.Empty,
+                ApiVersion = settings.AzureApiVersion ?? defaults.AzureApiVersion,
+            }];
+        }
+
         // System.Text.Json accepts explicit nulls for non-nullable reference properties.
         // Older settings files can therefore bypass the property initializers and pass
         // null strings to application code that correctly relies on this schema.
         return settings with
         {
+            TranscriptionEndpoints = endpoints,
+            SelectedTranscriptionEndpointId = settings.SelectedTranscriptionEndpointId ?? endpoints.FirstOrDefault()?.Id,
             TranscriptionLanguageMode = TranscriptionLanguageModes.IsValid(settings.TranscriptionLanguageMode)
                 ? settings.TranscriptionLanguageMode
                 : defaults.TranscriptionLanguageMode,

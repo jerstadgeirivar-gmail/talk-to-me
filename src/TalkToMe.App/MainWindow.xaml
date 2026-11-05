@@ -36,6 +36,17 @@
                            Text="Norwegian dictation" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Width="36"
+                        Height="36"
+                        Padding="0"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource SecondaryButton}"
+                        ToolTip="Open runtime diagnostics"
+                        Click="OpenDiagnostics"
+                        AutomationProperties.AutomationId="OpenDiagnosticsButton"
+                        AutomationProperties.Name="Open runtime diagnostics">
+                    <TextBlock FontFamily="Segoe Fluent Icons" Text="&#xE8A5;" FontSize="16" />
+                </Button>
                 <Button MinWidth="88"
                         Style="{StaticResource SecondaryButton}"
                         Content="Settings"

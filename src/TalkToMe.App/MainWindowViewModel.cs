@@ -21,6 +21,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private readonly bool _allowRecordOnly;
     private bool _retainFailedAudio;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private CancellationTokenSource? _transcriptionCancellation;
     private readonly AsyncDelegateCommand _startRecordingCommand;
     private readonly AsyncDelegateCommand _openAudioFileCommand;
     private readonly AsyncDelegateCommand _stopRecordingCommand;
@@ -37,6 +38,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private string _transcriptText = string.Empty;
     private WindowTarget? _windowTarget;
     private RecordingResult? _lastRecording;
+    private bool _lastRecordingImported;
     private string _targetText = "No target captured — focus a text field and use the hotkey";
     private string _voiceCommandText = "Off";
     private string _versionText = "Development build";
@@ -69,7 +71,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         _openAudioFileCommand = new AsyncDelegateCommand(OpenAudioFileAsyncFromCommand, CanOpenAudioFile);
         _stopRecordingCommand = new AsyncDelegateCommand(StopRecordingAsync, () => IsRecording);
         _insertCommand = new AsyncDelegateCommand(InsertTranscriptAsync, CanInsertTranscript);
-        _cancelCommand = new AsyncDelegateCommand(CancelRecordingAsync, () => IsRecording);
+        _cancelCommand = new AsyncDelegateCommand(CancelCurrentOperationAsync, () => IsRecording || _stateController.Current == DictationState.Transcribing);
         _retryCommand = new AsyncDelegateCommand(RetryTranscriptionAsync, CanRetryTranscription);
         _deletePendingCommand = new AsyncDelegateCommand(DeletePendingAudioAsync, CanDeletePendingAudio);
         _checkForUpdatesCommand = new AsyncDelegateCommand(
@@ -97,7 +99,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     public string StatusText
     {
         get => _statusText;
-        private set => SetProperty(ref _statusText, value);
+        private set
+        {
+            if (SetProperty(ref _statusText, value))
+            {
+                RuntimeDiagnostics.Write("dictation.status", new { state = _stateController.Current.ToString(), status = value });
+                _cancelCommand.RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public string DurationText
@@ -324,6 +333,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             }
 
             TimeSpan duration = GetAudioDuration(fullPath);
+            _lastRecording = new RecordingResult(fullPath, duration, file.Length);
+            _lastRecordingImported = true;
+            _windowTarget = null;
+            _insertAfterTranscription = false;
             if (_stateController.Current == DictationState.RecoverableFailure)
             {
                 _stateController.TransitionTo(DictationState.Idle);
@@ -360,11 +373,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
                 _stateController.TransitionTo(DictationState.RecoverableFailure);
             }
 
+            RuntimeDiagnostics.Failure("audio.import.failed", exception);
             StatusText = $"Could not import audio: {exception.Message} The original file was kept.";
         }
         finally
         {
             _openAudioFileCommand.RaiseCanExecuteChanged();
+            RaiseRecoveryCanExecuteChanged();
         }
     }
 
@@ -412,6 +427,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            RuntimeDiagnostics.Failure("recording.start.failed", exception);
             TransitionToFailure();
         }
     }
@@ -432,6 +448,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
             }
 
             _lastRecording = result;
+            _lastRecordingImported = false;
             recordingStopped?.Invoke();
             _stateController.TransitionTo(DictationState.PreparingAudio);
             DurationText = FormatDuration(result.Duration);
@@ -458,11 +475,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         {
             HandleTranscriptionFailure(GetTranscriptionFailureMessage(exception));
         }
+        catch (OperationCanceledException) when (!_lifetimeCancellation.IsCancellationRequested)
+        {
+            HandleTranscriptionFailure("Transcription cancelled");
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            RuntimeDiagnostics.Failure("recording.stop.failed", exception);
             if (_stateController.Current == DictationState.Transcribing)
             {
-                HandleTranscriptionFailure("Transcription failed");
+                HandleTranscriptionFailure($"Transcription failed: {exception.Message}");
             }
             else
             {
@@ -528,6 +550,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         RaiseRecoveryCanExecuteChanged();
     }
 
+    private Task CancelCurrentOperationAsync()
+    {
+        if (IsRecording) return CancelRecordingAsync();
+        StatusText = "Cancelling transcription";
+        _transcriptionCancellation?.Cancel();
+        return Task.CompletedTask;
+    }
+
     private bool CanRetryTranscription() =>
         _transcriptionProvider is not null &&
         _lastRecording is not null &&
@@ -544,20 +574,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
         StatusText = "Retrying transcription";
         try
         {
-            await TranscribeRecordingAsync(_lastRecording);
+            if (_lastRecordingImported)
+                await TranscribeImportedAudioAsync(new RecordedAudio(_lastRecording.FilePath, _lastRecording.Duration, _lastRecording.FileSizeBytes));
+            else
+                await TranscribeRecordingAsync(_lastRecording);
         }
         catch (TranscriptionException exception)
         {
             HandleTranscriptionFailure(GetTranscriptionFailureMessage(exception));
         }
+        catch (OperationCanceledException) when (!_lifetimeCancellation.IsCancellationRequested)
+        {
+            HandleTranscriptionFailure("Transcription cancelled");
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            HandleTranscriptionFailure("Transcription failed");
+            HandleTranscriptionFailure($"Transcription failed: {exception.Message}");
         }
     }
 
     private bool CanDeletePendingAudio() =>
-        !IsRecording && _lastRecording is not null && File.Exists(_lastRecording.FilePath);
+        !IsRecording && !_lastRecordingImported && _lastRecording is not null && File.Exists(_lastRecording.FilePath);
 
     private Task DeletePendingAudioAsync()
     {
@@ -582,10 +619,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private async Task TranscribeRecordingAsync(RecordingResult recording)
     {
         Progress<string> progress = new(message => StatusText = message);
-        TranscriptionResult transcription = await _transcriptionProvider!.TranscribeAsync(
+        using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        _transcriptionCancellation = operation;
+        TranscriptionResult transcription;
+        try { transcription = await _transcriptionProvider!.TranscribeAsync(
             new RecordedAudio(recording.FilePath, recording.Duration, recording.FileSizeBytes),
             new TranscriptionContext(null, null, progress),
-            _lifetimeCancellation.Token);
+            operation.Token); }
+        finally { _transcriptionCancellation = null; }
         TranscriptText = transcription.Text;
         DeleteLastRecording();
         _stateController.TransitionTo(DictationState.ReadyToInsert);
@@ -599,11 +640,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private async Task TranscribeImportedAudioAsync(RecordedAudio audio)
     {
         Progress<string> progress = new(message => StatusText = message);
-        TranscriptionResult transcription = await _transcriptionProvider!.TranscribeAsync(
+        using CancellationTokenSource operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        _transcriptionCancellation = operation;
+        TranscriptionResult transcription;
+        try { transcription = await _transcriptionProvider!.TranscribeAsync(
             audio,
             new TranscriptionContext(null, null, progress),
-            _lifetimeCancellation.Token);
+            operation.Token); }
+        finally { _transcriptionCancellation = null; }
         TranscriptText = transcription.Text;
+        _lastRecording = null;
+        _lastRecordingImported = false;
         _stateController.TransitionTo(DictationState.ReadyToInsert);
         StatusText = "Transcript ready — the original file was kept";
         _insertCommand.RaiseCanExecuteChanged();
@@ -662,7 +709,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IAsyncDisposab
     private void HandleTranscriptionFailure(string message)
     {
         TransitionToFailure(message);
-        if (_retainFailedAudio)
+        if (_retainFailedAudio || _lastRecordingImported)
         {
             return;
         }

@@ -9,6 +9,8 @@ public sealed record AzureTranscriptionOptions(
     string ApiVersion,
     TimeSpan Timeout)
 {
+    public TranscriptionEndpointProfile? Profile { get; init; }
+
     public const long PreparationThresholdBytes = 24 * 1024 * 1024;
     public const long MaximumAudioBytes = 25 * 1024 * 1024;
 
@@ -21,12 +23,13 @@ public sealed record AzureTranscriptionOptions(
         ApplicationSettings settings,
         string? storedApiKey)
     {
-        string? endpoint = Environment.GetEnvironmentVariable("TALKTOME_AZURE_ENDPOINT") ?? settings.AzureEndpoint;
+        TranscriptionEndpointProfile profile = ResolveProfile(settings);
+        string? endpoint = Environment.GetEnvironmentVariable("TALKTOME_AZURE_ENDPOINT") ?? profile.Endpoint;
         string? apiKey = Environment.GetEnvironmentVariable("TALKTOME_AZURE_API_KEY") ?? storedApiKey;
         string? deployment =
-            Environment.GetEnvironmentVariable("TALKTOME_AZURE_DEPLOYMENT") ?? settings.AzureDeployment;
+            Environment.GetEnvironmentVariable("TALKTOME_AZURE_DEPLOYMENT") ?? profile.Deployment;
         string apiVersion =
-            Environment.GetEnvironmentVariable("TALKTOME_AZURE_API_VERSION") ?? settings.AzureApiVersion;
+            Environment.GetEnvironmentVariable("TALKTOME_AZURE_API_VERSION") ?? profile.ApiVersion;
 
         if (string.IsNullOrWhiteSpace(endpoint) ||
             string.IsNullOrWhiteSpace(apiKey) ||
@@ -35,17 +38,30 @@ public sealed record AzureTranscriptionOptions(
             return null;
         }
 
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out Uri? endpointUri) ||
-            endpointUri.Scheme != Uri.UriSchemeHttps)
-        {
-            throw new ArgumentException("TALKTOME_AZURE_ENDPOINT must be an absolute HTTPS URI.");
-        }
+        profile = profile with { Endpoint = endpoint, Deployment = deployment, ApiVersion = apiVersion };
+        profile.Validate();
+        Uri endpointUri = new(endpoint);
 
         return new AzureTranscriptionOptions(
             endpointUri,
             apiKey,
             deployment,
             apiVersion,
-            TimeSpan.FromMinutes(10));
+            TimeSpan.FromSeconds(profile.RequestTimeoutSeconds)) { Profile = profile };
+    }
+
+    public static TranscriptionEndpointProfile ResolveProfile(ApplicationSettings settings)
+    {
+        if (settings.TranscriptionEndpoints.Count == 0)
+            return new TranscriptionEndpointProfile
+            {
+                Id = TranscriptionEndpointProfile.LegacyId,
+                Name = "Existing Azure endpoint",
+                Endpoint = settings.AzureEndpoint,
+                Deployment = settings.AzureDeployment,
+                ApiVersion = settings.AzureApiVersion,
+            };
+        return settings.TranscriptionEndpoints.FirstOrDefault(profile => profile.Id == settings.SelectedTranscriptionEndpointId)
+            ?? throw new ArgumentException("The selected endpoint profile was not found. Select an endpoint in Settings.");
     }
 }

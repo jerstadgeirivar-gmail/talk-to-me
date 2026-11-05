@@ -8,37 +8,34 @@ public sealed class TranscriptionProviderCoordinator(ITranscriptionProviderFacto
         "Talen er hovedsakelig norsk, men kan inneholde engelske ord, tekniske begreper, identifikatorer og setninger.";
     private readonly SemaphoreSlim _gate = new(1, 1);
     private ITranscriptionProvider? _provider;
-    private string _providerId = providerId;
-    private bool _reload = true;
+    private volatile string _providerId = providerId;
+    private int _selectionVersion;
+    private int _loadedSelectionVersion = -1;
 
     public string ProviderId => _providerId;
 
-    public async Task ApplySelectionAsync(string providerId, CancellationToken cancellationToken)
+    public Task ApplySelectionAsync(string providerId, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            if (_providerId != providerId) _providerId = providerId;
-            _reload = true;
-            if (_provider is not null)
-            {
-                await _provider.DisposeAsync();
-                _provider = null;
-            }
-        }
-        finally { _gate.Release(); }
+        cancellationToken.ThrowIfCancellationRequested();
+        _providerId = providerId;
+        Interlocked.Increment(ref _selectionVersion);
+        return Task.CompletedTask;
     }
 
     public async Task<TranscriptionResult> TranscribeAsync(RecordedAudio audio, TranscriptionContext context, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
+        RuntimeDiagnostics.Write("transcription.started", new { provider = _providerId, audio.Duration, audio.FileSizeBytes });
         try
         {
-            if (_reload || _provider is null)
+            int selectionVersion = Volatile.Read(ref _selectionVersion);
+            string selectedProvider = _providerId;
+            if (_loadedSelectionVersion != selectionVersion || _provider is null)
             {
                 if (_provider is not null) await _provider.DisposeAsync();
-                _provider = await factory.CreateAsync(_providerId, cancellationToken);
-                _reload = false;
+                _provider = null;
+                _provider = await factory.CreateAsync(selectedProvider, cancellationToken);
+                _loadedSelectionVersion = selectionVersion;
             }
             ApplicationSettings settings = await settingsStore.LoadAsync(cancellationToken);
             try
@@ -52,7 +49,14 @@ public sealed class TranscriptionProviderCoordinator(ITranscriptionProviderFacto
                     innerException: exception);
             }
             TranscriptionContext effectiveContext = CreateEffectiveContext(context, settings);
-            return await _provider.TranscribeAsync(audio, effectiveContext, cancellationToken);
+            TranscriptionResult result = await _provider.TranscribeAsync(audio, effectiveContext, cancellationToken);
+            RuntimeDiagnostics.Write("transcription.completed", new { provider = _providerId, characters = result.Text.Length });
+            return result;
+        }
+        catch (Exception exception)
+        {
+            RuntimeDiagnostics.Failure("transcription.failed", exception);
+            throw;
         }
         finally { _gate.Release(); }
     }

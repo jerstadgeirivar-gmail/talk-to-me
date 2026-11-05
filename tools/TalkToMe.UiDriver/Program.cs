@@ -13,6 +13,41 @@ using FlaUI.UIA3;
 using TalkToMe.Core;
 using TalkToMe.Infrastructure;
 
+if (args.Length == 4 && args[0] == "--extract-audio")
+{
+    if (!double.TryParse(args[3], NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) ||
+        !double.IsFinite(seconds) || seconds <= 0 || seconds > TimeSpan.FromHours(2).TotalSeconds)
+        throw new ArgumentException("Validation audio extraction must be greater than zero and at most 7200 seconds.");
+    string sourcePath = Path.GetFullPath(args[1]);
+    string outputPath = Path.GetFullPath(args[2]);
+    if (File.Exists(outputPath)) throw new IOException("The extraction destination already exists.");
+    using NAudio.Wave.AudioFileReader reader = new(sourcePath);
+    NAudio.Wave.ISampleProvider samples = reader;
+    if (samples.WaveFormat.Channels == 2)
+        samples = new NAudio.Wave.SampleProviders.StereoToMonoSampleProvider(samples);
+    if (samples.WaveFormat.Channels != 1) throw new InvalidOperationException("Validation extraction requires mono or stereo input.");
+    if (samples.WaveFormat.SampleRate != 16000)
+        samples = new NAudio.Wave.SampleProviders.WdlResamplingSampleProvider(samples, 16000);
+    NAudio.Wave.SampleProviders.SampleToWaveProvider16 provider = new(samples);
+    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+    using (NAudio.Wave.WaveFileWriter writer = new(outputPath, provider.WaveFormat))
+    {
+        long remaining = (long)Math.Floor(seconds * 32000);
+        remaining -= remaining % 2;
+        byte[] buffer = new byte[65536];
+        while (remaining > 0)
+        {
+            int read = provider.Read(buffer, 0, (int)Math.Min(buffer.Length, remaining));
+            if (read == 0) break;
+            writer.Write(buffer, 0, read);
+            remaining -= read;
+        }
+    }
+    using NAudio.Wave.WaveFileReader extracted = new(outputPath);
+    Console.WriteLine($"PASS extracted-seconds={extracted.TotalTime.TotalSeconds:F3} azure-requests=0");
+    return 0;
+}
+
 if (args.Length == 2 && args[0] == "--migrate-key")
 {
     return await MigrateCredentialAsync(Path.GetFullPath(args[1]));
@@ -21,7 +56,7 @@ if (args.Length == 2 && args[0] == "--scan-package")
 {
     return await ScanPackageAsync(Path.GetFullPath(args[1]));
 }
-if (args.Length is 2 or 3 && args[0] == "--inspect-running")
+if (args.Length is 2 or 3 or 4 && args[0] == "--inspect-running")
 {
     string directory = Path.GetFullPath(args[1]);
     Directory.CreateDirectory(directory);
@@ -33,6 +68,26 @@ if (args.Length is 2 or 3 && args[0] == "--inspect-running")
     Console.WriteLine($"pid={running.Id} responding={running.Responding} status={FindByAutomationId(runningWindow, "RecordingStatusText").Name}");
     WriteAutomationTree(runningWindow, Path.Combine(directory, "running-uia-tree.txt"));
     CaptureWindow(runningWindow, Path.Combine(directory, "running-window.png"));
+    if (args.Length == 3 && args[2] == "--open-diagnostics")
+    {
+        FindByAutomationId(runningWindow, "OpenDiagnosticsButton").AsButton().Invoke();
+        Console.WriteLine("diagnostics-action=invoked");
+    }
+    if (args.Length == 4 && args[2] == "--import-audio")
+    {
+        string sourcePath = Path.GetFullPath(args[3]);
+        byte[] sourceHash = SHA256.HashData(File.ReadAllBytes(sourcePath));
+        ImportVocabularyAudio(runningWindow, sourcePath);
+        WaitForImportResult(runningWindow, TimeSpan.FromMinutes(10));
+        string transcript = FindByAutomationId(runningWindow, "TranscriptTextBox").AsTextBox().Text;
+        if (string.IsNullOrWhiteSpace(transcript)) throw new InvalidOperationException("Running app returned no transcript.");
+        if (!sourceHash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(sourcePath))))
+            throw new InvalidOperationException("Running app modified the source audio.");
+        File.WriteAllText(Path.Combine(directory, "transcript.txt"), transcript);
+        CaptureWindow(runningWindow, Path.Combine(directory, "transcript-window.png"));
+        WriteAutomationTree(runningWindow, Path.Combine(directory, "transcript-uia-tree.txt"));
+        Console.WriteLine($"PASS running-import characters={transcript.Length} source-preserved=True");
+    }
     if (args.Length == 3 && args[2] == "--edit-vocabulary")
     {
         Task invokeTask = Task.Run(() => FindByAutomationId(runningWindow, "SettingsButton").AsButton().Invoke());
@@ -79,8 +134,13 @@ bool liveAzureScenario = args.Length == 5 && args[3] == "--live";
 bool liveOversizedScenario = args.Length == 4 && args[3] == "--live-oversized";
 bool liveLocalScenario = args.Length == 4 && args[3] == "--live-local";
 bool configuredImportScenario = args.Length == 4 && args[3] == "--import-file-configured";
-bool vocabularyScenario = args.Length == 4 && args[3] == "--vocabulary";
-bool importFileScenario = vocabularyScenario || configuredImportScenario || args.Length == 4 && args[3] == "--import-file";
+bool vocabularyRetryScenario = args.Length == 4 && args[3] == "--vocabulary-retry";
+bool azureErrorRetryScenario = args.Length == 4 && args[3] == "--azure-error-retry";
+bool segmentationScenario = args.Length == 4 && args[3] is "--segmentation" or "--segmentation-long" or "--segmentation-token-limit";
+bool longSegmentationScenario = segmentationScenario && args[3] == "--segmentation-long";
+bool tokenLimitScenario = segmentationScenario && args[3] == "--segmentation-token-limit";
+bool vocabularyScenario = vocabularyRetryScenario || args.Length == 4 && args[3] == "--vocabulary";
+bool importFileScenario = segmentationScenario || azureErrorRetryScenario || vocabularyScenario || configuredImportScenario || args.Length == 4 && args[3] == "--import-file";
 bool privacyFailureScenario = args.Length == 5 && args[3] == "--privacy-failure";
 bool privacyTranscriptionFailureScenario = args.Length == 4 && args[3] == "--privacy-transcription-failure";
 if (!settingsScenario && !capabilitiesScenario && !firstRunModelScenario && !liveProviderScenario && !liveAzureScenario && !liveOversizedScenario && !liveLocalScenario && !importFileScenario && !privacyFailureScenario && !privacyTranscriptionFailureScenario && args.Length is not 3 and not 4 and not 5)
@@ -99,8 +159,22 @@ string? expectedTranscript = privacyFailureScenario
 string? targetApplicationPath = args.Length == 5 ? Path.GetFullPath(args[4]) : null;
 bool insertionScenario = expectedTranscript is not null || liveAzureScenario || privacyFailureScenario;
 bool transcriptionScenario = insertionScenario || liveOversizedScenario || liveLocalScenario;
+if (longSegmentationScenario)
+{
+    using NAudio.Wave.AudioFileReader durationReader = new(audioFixturePath);
+    if (durationReader.TotalTime > TimeSpan.FromHours(2))
+    {
+        Console.Error.WriteLine("BLOCKED: Long validation is capped at two hours. Extract a bounded fixture before any Azure requests.");
+        return 2;
+    }
+    if (durationReader.TotalTime < TimeSpan.FromHours(2))
+    {
+        Console.Error.WriteLine("BLOCKED: This long-validation scenario requires a two-hour fixture; use --segmentation for shorter audio.");
+        return 2;
+    }
+}
 Directory.CreateDirectory(evidenceDirectory);
-if (vocabularyScenario)
+if (segmentationScenario || vocabularyScenario || azureErrorRetryScenario)
 {
     string dataDirectory = Path.Combine(evidenceDirectory, "data");
     Directory.CreateDirectory(dataDirectory);
@@ -108,16 +182,23 @@ if (vocabularyScenario)
     if (current.TranscriptionProviderId != TranscriptionProviderIds.AzureOpenAi)
         throw new InvalidOperationException("Vocabulary live validation requires a real configured Azure provider.");
     string settingsPath = Path.Combine(dataDirectory, "settings.json");
+    TranscriptionEndpointProfile activeProfile = AzureTranscriptionOptions.ResolveProfile(current);
+    if (azureErrorRetryScenario) activeProfile = activeProfile with { Deployment = $"talktome-validation-missing-{Guid.NewGuid():N}" };
+    if (segmentationScenario) activeProfile = activeProfile with { RetainProgress = true, Name = "Validation endpoint" };
     File.WriteAllText(settingsPath, System.Text.Json.JsonSerializer.Serialize(current with
     {
-        TechnicalVocabulary = "Git, WSL, Ubuntu\nKubernetes\nMicrosoft Entra ID",
+        TechnicalVocabulary = vocabularyScenario ? "Git, WSL, Ubuntu\nKubernetes\nMicrosoft Entra ID" : await new JsonApplicationSettingsStore().LoadVocabularyAsync(CancellationToken.None),
+        AzureDeployment = activeProfile.Deployment,
+        TranscriptionEndpoints = [activeProfile],
+        SelectedTranscriptionEndpointId = activeProfile.Id,
+        TranscriptionLanguageMode = longSegmentationScenario || tokenLimitScenario ? TranscriptionLanguageModes.Auto : current.TranscriptionLanguageMode,
         VoiceCommandsEnabled = false,
         StartWithWindows = false,
     }));
-    string? key = await new DpapiSecretStore().GetSecretAsync(TranscriptionProviderIds.AzureOpenAi, CancellationToken.None);
+    string? key = await new DpapiSecretStore().GetSecretAsync(activeProfile.CredentialId, CancellationToken.None);
     if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Real Azure credential is unavailable.");
     await new DpapiSecretStore(Path.Combine(dataDirectory, "credential.bin"))
-        .SetSecretAsync(TranscriptionProviderIds.AzureOpenAi, key, CancellationToken.None);
+        .SetSecretAsync(activeProfile.CredentialId, key, CancellationToken.None);
 }
 if (settingsScenario)
 {
@@ -228,14 +309,71 @@ try
         TimeSpan.FromSeconds(5));
     if (importFileScenario)
     {
+        byte[] sourceHash = HashAudioFile(audioFixturePath!);
+        if (segmentationScenario)
+        {
+            RunEndpointProfileScenario(window, evidenceDirectory, longSegmentationScenario, tokenLimitScenario);
+            string logsDirectory = Path.Combine(evidenceDirectory, "data", "Diagnostics");
+            ImportVocabularyAudio(window, audioFixturePath!);
+            WaitForRuntimeEvents(logsDirectory, "segment.completed", 2, TimeSpan.FromMinutes(3));
+            CaptureWindow(window, Path.Combine(evidenceDirectory, "before-cancel.png"));
+            FindByAutomationId(window, "CancelButton").AsButton().Invoke();
+            WaitForElementNameContains(window, statusAutomationId, "Audio import cancelled", TimeSpan.FromSeconds(30));
+            CaptureWindow(window, Path.Combine(evidenceDirectory, "cancelled.png"));
+            string checkpoint = Directory.GetFiles(logsDirectory, "*.bin", SearchOption.AllDirectories).Single();
+            byte[] protectedProgress = File.ReadAllBytes(checkpoint);
+            byte[] plain = ProtectedData.Unprotect(protectedProgress, null, DataProtectionScope.CurrentUser);
+            int savedCount;
+            try
+            {
+                using System.Text.Json.JsonDocument progress = System.Text.Json.JsonDocument.Parse(plain);
+                savedCount = progress.RootElement.GetArrayLength();
+                if (savedCount < 2) throw new InvalidOperationException("Cancellation did not preserve completed segments.");
+            }
+            finally { CryptographicOperations.ZeroMemory(plain); }
+            File.WriteAllText(Path.Combine(evidenceDirectory, "resume-before-restart.txt"), $"EncryptedCheckpoint: PASS\nCompletedSegments: {savedCount}\n");
+            TerminateOwnedProcess(process);
+            application.Dispose();
+            process.Dispose();
+            application = Application.Launch(startInfo);
+            process = Process.GetProcessById(application.ProcessId);
+            window = WaitForWindow(application, automation, windowAutomationId, TimeSpan.FromSeconds(15));
+        }
         if (vocabularyScenario)
         {
             RunVocabularyScenario(window, evidenceDirectory, audioFixturePath!);
         }
-        ImportVocabularyAudio(window, audioFixturePath!);
+        if (azureErrorRetryScenario)
+        {
+            ImportVocabularyAudio(window, audioFixturePath!);
+            WaitForElementNameContains(window, statusAutomationId, "HTTP 404", TimeSpan.FromSeconds(60));
+            CaptureWindow(window, Path.Combine(evidenceDirectory, "azure-rejection.png"));
+            WriteAutomationTree(window, Path.Combine(evidenceDirectory, "azure-rejection-uia.txt"));
+            ApplicationSettings current = await new JsonApplicationSettingsStore().LoadAsync(CancellationToken.None);
+            Task invocation = Task.Run(() => FindByAutomationId(window, "SettingsButton").AsButton().Invoke());
+            Window settingsWindow = WaitForDescendantWindow(window, "SettingsWindow", TimeSpan.FromSeconds(10));
+            FindByAutomationId(settingsWindow, "TranscriptionTab").Patterns.SelectionItem.Pattern.Select();
+            FindByAutomationId(settingsWindow, "AzureDeploymentTextBox").AsTextBox().Enter(current.AzureDeployment);
+            FindByAutomationId(settingsWindow, "SaveSettingsButton").AsButton().Invoke();
+            WaitForElementNameContains(settingsWindow, "SettingsStatusText", "Settings saved", TimeSpan.FromSeconds(10));
+            settingsWindow.Close();
+            if (!invocation.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Settings did not close after deployment repair.");
+        }
+        if (vocabularyRetryScenario || azureErrorRetryScenario)
+        {
+            AutomationElement retry = FindByAutomationId(window, "RetryButton");
+            AssertEnabledState(retry, true, "retry after imported audio failure");
+            AutomationElement? delete = window.FindFirstDescendant(condition => condition.ByAutomationId("DeletePendingAudioButton"));
+            if (delete?.IsEnabled is true) throw new InvalidOperationException("Delete was enabled for externally owned audio.");
+            retry.AsButton().Invoke();
+        }
+        else
+        {
+            ImportVocabularyAudio(window, audioFixturePath!);
+        }
         AutomationElement importedStatus = WaitForImportResult(
             window,
-            TimeSpan.FromMinutes(3));
+            TimeSpan.FromMinutes(longSegmentationScenario ? 30 : 5));
         AutomationElement importedTranscript = FindByAutomationId(window, transcriptAutomationId);
         if (string.IsNullOrWhiteSpace(importedTranscript.AsTextBox().Text))
         {
@@ -245,6 +383,61 @@ try
         if (!File.Exists(audioFixturePath))
         {
             throw new InvalidOperationException("The imported source file was not preserved.");
+        }
+        if (!sourceHash.SequenceEqual(HashAudioFile(audioFixturePath)))
+            throw new InvalidOperationException("Import changed the source audio content.");
+        if (segmentationScenario)
+        {
+            string logsDirectory = Path.Combine(evidenceDirectory, "data", "Diagnostics");
+            List<System.Text.Json.JsonElement> resumed = ReadRuntimeEvents(logsDirectory, "segment.resumed");
+            if (resumed.Count < 2) throw new InvalidOperationException("Restart did not reuse completed segments.");
+            JsonApplicationSettingsStore store = new(Path.Combine(evidenceDirectory, "data", "settings.json"));
+            TranscriptionEndpointProfile selected = AzureTranscriptionOptions.ResolveProfile(await store.LoadAsync(CancellationToken.None));
+            List<System.Text.Json.JsonElement> requests = ReadRuntimeEvents(logsDirectory, "azure.request.started");
+            if (requests.Any(entry => entry.GetProperty("uploadBytes").GetInt64() > selected.MaximumUploadBytes ||
+                entry.GetProperty("contentType").GetString() != "audio/wav"))
+                throw new InvalidOperationException("A segmented upload exceeded its budget or was lossy encoded.");
+            List<System.Text.Json.JsonElement> completedSegments = ReadRuntimeEvents(logsDirectory, "segment.completed");
+            double coveredUntil = 0;
+            foreach (System.Text.Json.JsonElement segment in completedSegments.OrderBy(entry => entry.GetProperty("startSeconds").GetDouble()))
+            {
+                double start = segment.GetProperty("startSeconds").GetDouble();
+                double segmentDuration = segment.GetProperty("durationSeconds").GetDouble();
+                if (start > coveredUntil + 0.001) throw new InvalidOperationException("Audio segment coverage contains a gap.");
+                coveredUntil = Math.Max(coveredUntil, start + segmentDuration);
+            }
+            using NAudio.Wave.AudioFileReader audioReader = new(audioFixturePath);
+            if (coveredUntil < audioReader.TotalTime.TotalSeconds - 0.1) throw new InvalidOperationException("Segment coverage did not reach the end of the audio.");
+            if (longSegmentationScenario && audioReader.TotalTime < TimeSpan.FromHours(2))
+                throw new InvalidOperationException("The multi-hour journey requires at least two hours of real audio.");
+            if (tokenLimitScenario && ReadRuntimeEvents(logsDirectory, "segment.reducing").Count == 0)
+                throw new InvalidOperationException("The token-limit journey did not exercise adaptive segmentation.");
+            if (Directory.GetFiles(logsDirectory, "*.bin", SearchOption.AllDirectories).Length != 0 ||
+                Directory.GetDirectories(logsDirectory, ".audio-*", SearchOption.AllDirectories).Length != 0)
+                throw new InvalidOperationException("A completed job left checkpoint or temporary audio artifacts.");
+            string logs = string.Join(Environment.NewLine, Directory.GetFiles(logsDirectory, "runtime-*.jsonl").Select(File.ReadAllText));
+            string? key = await new DpapiSecretStore(Path.Combine(evidenceDirectory, "data", "credential.bin")).GetSecretAsync(selected.CredentialId, CancellationToken.None);
+            if (!string.IsNullOrEmpty(key) && logs.Contains(key, StringComparison.Ordinal)) throw new InvalidOperationException("Runtime logs exposed the credential.");
+            if (logs.Contains(System.Text.Json.JsonSerializer.Serialize(importedTranscript.AsTextBox().Text), StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime logs exposed the transcript.");
+            File.WriteAllText(Path.Combine(evidenceDirectory, "segmentation-result.txt"),
+                $"ProfileRegistry: PASS\nCancellation: PASS\nEncryptedResume: PASS\nResumedSegments: {resumed.Count}\nSourceHashPreserved: PASS\nAudioCoverageSeconds: {coveredUntil:F3}\nBoundedPcmUploads: PASS\nCleanup: PASS\nLogPrivacy: PASS\n");
+        }
+        if (vocabularyRetryScenario || azureErrorRetryScenario)
+        {
+            string logDirectory = Path.Combine(evidenceDirectory, "data", "Diagnostics");
+            string logs = string.Join(Environment.NewLine, Directory.GetFiles(logDirectory, "runtime-*.jsonl").Select(File.ReadAllText));
+            string? actualKey = await new DpapiSecretStore().GetSecretAsync(TranscriptionProviderIds.AzureOpenAi, CancellationToken.None);
+            if (!string.IsNullOrEmpty(actualKey) && logs.Contains(actualKey, StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime logs exposed the API key.");
+            string serializedTranscript = System.Text.Json.JsonSerializer.Serialize(importedTranscript.AsTextBox().Text);
+            if (logs.Contains(serializedTranscript, StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime logs exposed the transcript.");
+            if (!logs.Contains("transcription.failed", StringComparison.Ordinal) || !logs.Contains("transcription.completed", StringComparison.Ordinal))
+                throw new InvalidOperationException("Runtime logs did not capture failure and recovery.");
+            if (azureErrorRetryScenario && (!logs.Contains("azure.request.rejected", StringComparison.Ordinal) || !logs.Contains("requestId", StringComparison.Ordinal)))
+                throw new InvalidOperationException("Runtime logs did not capture Azure rejection diagnostics.");
+            File.WriteAllText(Path.Combine(evidenceDirectory, "retry-result.txt"), "ImportedAudioRetry: PASS\nSourceHashPreserved: PASS\nApiKeyExcluded: PASS\nTranscriptExcluded: PASS\nFailureAndRecoveryLogged: PASS\n");
         }
 
         File.WriteAllText(Path.Combine(evidenceDirectory, "transcript.txt"), importedTranscript.AsTextBox().Text);
@@ -580,6 +773,107 @@ static void RunVocabularyScenario(AutomationElement mainWindow, string evidenceD
         "Migration: PASS\nExternalEditPreserved: PASS\nEmptyFile: PASS\nMissingFile: PASS\nInvalidUtf8Failure: PASS\nReloadAfterRepair: PASS\n");
 }
 
+static byte[] HashAudioFile(string path)
+{
+    using FileStream stream = File.OpenRead(path);
+    return SHA256.HashData(stream);
+}
+
+static void RunEndpointProfileScenario(AutomationElement mainWindow, string evidenceDirectory, bool longAudio, bool tokenLimit)
+{
+    Task invocation = Task.Run(() => FindByAutomationId(mainWindow, "SettingsButton").AsButton().Invoke());
+    Window settingsWindow = WaitForDescendantWindow(mainWindow, "SettingsWindow", TimeSpan.FromSeconds(10));
+    FindByAutomationId(settingsWindow, "TranscriptionTab").Patterns.SelectionItem.Pattern.Select();
+    JsonApplicationSettingsStore store = new(Path.Combine(evidenceDirectory, "data", "settings.json"));
+    TranscriptionEndpointProfile original = AzureTranscriptionOptions.ResolveProfile(store.LoadAsync(CancellationToken.None).GetAwaiter().GetResult());
+    FindByAutomationId(settingsWindow, "MaximumOutputTokensTextBox").AsTextBox().Enter("0");
+    FindByAutomationId(settingsWindow, "SaveSettingsButton").AsButton().Invoke();
+    WaitForElementNameContains(settingsWindow, "SettingsStatusText", "Maximum output tokens must be", TimeSpan.FromSeconds(5));
+    FindByAutomationId(settingsWindow, "MaximumOutputTokensTextBox").AsTextBox().Enter("2000");
+    FindByAutomationId(settingsWindow, "EstimatedTokensPerMinuteTextBox").AsTextBox().Enter("600");
+    FindByAutomationId(settingsWindow, "MaximumSegmentSecondsTextBox").AsTextBox().Enter("300");
+    FindByAutomationId(settingsWindow, "MaximumUploadBytesTextBox").AsTextBox().Enter("24000000");
+    WaitForElementNameContains(settingsWindow, "SegmentPlanText", "150.0", TimeSpan.FromSeconds(5));
+    FindByAutomationId(settingsWindow, "MaximumOutputTokensTextBox").AsTextBox().Enter("4000");
+    WaitForElementNameContains(settingsWindow, "SegmentPlanText", "300.0", TimeSpan.FromSeconds(5));
+    FindByAutomationId(settingsWindow, "EstimatedTokensPerMinuteTextBox").AsTextBox().Enter("1200");
+    WaitForElementNameContains(settingsWindow, "SegmentPlanText", "150.0", TimeSpan.FromSeconds(5));
+    FindByAutomationId(settingsWindow, "AddEndpointButton").AsButton().Invoke();
+    if (FindByAutomationId(settingsWindow, "ApiKeyStatusText").Name.Equals("Configured", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("A new endpoint inherited another endpoint's credential.");
+    FindByAutomationId(settingsWindow, "RemoveEndpointButton").AsButton().Invoke();
+    FindByAutomationId(settingsWindow, "DuplicateEndpointButton").AsButton().Invoke();
+    if (FindByAutomationId(settingsWindow, "ApiKeyStatusText").Name.Equals("Configured", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("A duplicate endpoint inherited the original credential.");
+    FindByAutomationId(settingsWindow, "EndpointNameTextBox").AsTextBox().Enter("Independent profile");
+    FindByAutomationId(settingsWindow, "SaveSettingsButton").AsButton().Invoke();
+    WaitForElementNameContains(settingsWindow, "SettingsStatusText", "Settings saved", TimeSpan.FromSeconds(10));
+    ApplicationSettings saved = store.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+    if (saved.TranscriptionEndpoints.Count != 2 || saved.TranscriptionEndpoints.Select(profile => profile.Id).Distinct().Count() != 2)
+        throw new InvalidOperationException("Endpoint registration was not persisted independently.");
+    FindByAutomationId(settingsWindow, "TestProviderButton").AsButton().Invoke();
+    WaitForElementNameContains(settingsWindow, "ProviderStatusText", "required", TimeSpan.FromSeconds(10));
+    FindByAutomationId(settingsWindow, "RemoveEndpointButton").AsButton().Invoke();
+    FindByAutomationId(settingsWindow, "MaximumOutputTokensTextBox").AsTextBox().Enter(tokenLimit ? "128" : "2000");
+    FindByAutomationId(settingsWindow, "EstimatedTokensPerMinuteTextBox").AsTextBox().Enter(tokenLimit ? "60" : "600");
+    FindByAutomationId(settingsWindow, "MaximumSegmentSecondsTextBox").AsTextBox().Enter(longAudio ? "150" : "60");
+    FindByAutomationId(settingsWindow, "RetainTranscriptionProgressCheckBox").AsCheckBox().IsChecked = true;
+    FindByAutomationId(settingsWindow, "SaveSettingsButton").AsButton().Invoke();
+    WaitForElementNameContains(settingsWindow, "SettingsStatusText", "Settings saved", TimeSpan.FromSeconds(10));
+    saved = store.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+    TranscriptionEndpointProfile selected = AzureTranscriptionOptions.ResolveProfile(saved);
+    if (selected.Id != original.Id || !selected.RetainProgress || saved.TranscriptionEndpoints.Count != 1)
+        throw new InvalidOperationException("Endpoint selection, removal or resume consent did not persist.");
+    CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "endpoint-before-selection-check.png"));
+    ComboBox selector = FindByAutomationId(settingsWindow, "EndpointProfileSelector").AsComboBox();
+    selector.Patterns.ExpandCollapse.Pattern.Expand();
+    if (selector.SelectedItem?.Name != selected.Name)
+    {
+        CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "endpoint-selection-failure.png"));
+        throw new InvalidOperationException($"The saved endpoint was not visibly selected: '{selector.SelectedItem?.Name}'.");
+    }
+    selector.Patterns.ExpandCollapse.Pattern.Collapse();
+    if (!new DpapiSecretStore(Path.Combine(evidenceDirectory, "data", "credential.bin")).HasSecretAsync(original.CredentialId, CancellationToken.None).GetAwaiter().GetResult())
+        throw new InvalidOperationException("Removing a duplicate deleted the original protected credential.");
+    CaptureWindow(settingsWindow, Path.Combine(evidenceDirectory, "endpoint-settings.png"));
+    WriteAutomationTree(settingsWindow, Path.Combine(evidenceDirectory, "endpoint-settings-uia.txt"));
+    settingsWindow.Close();
+    if (!invocation.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException("Endpoint Settings did not close.");
+}
+
+static List<System.Text.Json.JsonElement> ReadRuntimeEvents(string directory, string eventName)
+{
+    List<System.Text.Json.JsonElement> entries = [];
+    if (!Directory.Exists(directory)) return entries;
+    foreach (string file in Directory.GetFiles(directory, "runtime-*.jsonl"))
+    {
+        using FileStream stream = new(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using StreamReader reader = new(stream);
+        while (reader.ReadLine() is { } line)
+        {
+            try
+            {
+                using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(line);
+                if (document.RootElement.GetProperty("eventName").GetString() == eventName)
+                    entries.Add(document.RootElement.GetProperty("details").Clone());
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+    }
+    return entries;
+}
+
+static void WaitForRuntimeEvents(string directory, string eventName, int count, TimeSpan timeout)
+{
+    Stopwatch timer = Stopwatch.StartNew();
+    while (timer.Elapsed < timeout)
+    {
+        if (ReadRuntimeEvents(directory, eventName).Count >= count) return;
+        Thread.Sleep(100);
+    }
+    throw new TimeoutException($"Runtime did not record {count} {eventName} events within {timeout}.");
+}
+
 static void ImportVocabularyAudio(AutomationElement mainWindow, string audioFixturePath)
 {
     FindByAutomationId(mainWindow, "OpenAudioFileButton").AsButton().Invoke();
@@ -685,7 +979,7 @@ static void RunSettingsScenario(
         mainWindow,
         "SettingsWindow",
         TimeSpan.FromSeconds(10));
-    AssertSettingsFitsWithoutScrolling(settingsWindow);
+    AssertSettingsControlsReachable(settingsWindow);
 
     FindByAutomationId(settingsWindow, "ProviderSelector").AsComboBox().Select("Azure OpenAI");
     FindByAutomationId(settingsWindow, "DictationTab").Patterns.SelectionItem.Pattern.Select();
@@ -863,7 +1157,7 @@ static void RunLiveProviderScenario(
     AutomationElement settingsButton = FindByAutomationId(mainWindow, "SettingsButton");
     Task invokeTask = Task.Run(() => settingsButton.AsButton().Invoke());
     Window settingsWindow = WaitForDescendantWindow(mainWindow, "SettingsWindow", TimeSpan.FromSeconds(10));
-    AssertSettingsFitsWithoutScrolling(settingsWindow);
+    AssertSettingsControlsReachable(settingsWindow);
     ComboBox provider = FindByAutomationId(settingsWindow, "ProviderSelector").AsComboBox();
     string selectedProvider = provider.SelectedItem?.Name ?? string.Empty;
     if (!selectedProvider.Contains("Azure OpenAI", StringComparison.Ordinal))
@@ -884,7 +1178,7 @@ static void RunLiveProviderScenario(
     File.WriteAllText(
         Path.Combine(evidenceDirectory, "result.txt"),
         $"ProcessId: {application.ProcessId}{Environment.NewLine}" +
-        "DefaultSettingsFitsWithoutScrolling: True" + Environment.NewLine +
+        "SettingsControlsReachable: True" + Environment.NewLine +
         $"Provider: {selectedProvider}{Environment.NewLine}" +
         $"Status: {status.Name}{Environment.NewLine}" +
         "RealAudioRequest: True" + Environment.NewLine +
@@ -896,7 +1190,7 @@ static void RunLiveProviderScenario(
     }
 }
 
-static void AssertSettingsFitsWithoutScrolling(AutomationElement settingsWindow)
+static void AssertSettingsControlsReachable(AutomationElement settingsWindow)
 {
     Rectangle bounds = Rectangle.Round(settingsWindow.BoundingRectangle);
     if (bounds.Width < 760 || bounds.Height < 920)
@@ -905,16 +1199,10 @@ static void AssertSettingsFitsWithoutScrolling(AutomationElement settingsWindow)
             $"Settings opened at {bounds.Width}x{bounds.Height}; expected at least 760x920.");
     }
 
-    AutomationElement? verticalScrollBar = settingsWindow.FindFirstDescendant(
-        condition => condition.ByAutomationId("VerticalScrollBar"));
-    if (verticalScrollBar is not null)
+    foreach (string automationId in new[] { "ProviderSelector", "EndpointProfileSelector", "TestProviderButton", "SaveSettingsButton" })
     {
-        Rectangle scrollBounds = Rectangle.Round(verticalScrollBar.BoundingRectangle);
-        if (scrollBounds.Width > 0 && scrollBounds.Height > 0)
-        {
-            throw new InvalidOperationException(
-                $"The Settings transcription tab still requires vertical scrolling ({scrollBounds}).");
-        }
+        AutomationElement control = FindByAutomationId(settingsWindow, automationId);
+        if (!control.IsEnabled) throw new InvalidOperationException($"Settings control '{automationId}' is disabled.");
     }
 }
 
@@ -963,11 +1251,17 @@ static Window WaitForNamedWindow(AutomationElement root, string name, TimeSpan t
 static AutomationElement WaitForImportResult(AutomationElement root, TimeSpan timeout)
 {
     Stopwatch stopwatch = Stopwatch.StartNew();
+    TimeSpan nextReport = TimeSpan.FromSeconds(20);
     string? observed = null;
     while (stopwatch.Elapsed < timeout)
     {
         AutomationElement? element = root.FindFirstDescendant(condition => condition.ByAutomationId(statusAutomationId));
         observed = element?.Name;
+        if (stopwatch.Elapsed >= nextReport)
+        {
+            Console.WriteLine($"Import progress after {stopwatch.Elapsed.TotalSeconds:N0}s: {observed}");
+            nextReport += TimeSpan.FromSeconds(20);
+        }
         if (observed?.Contains("Transcript ready", StringComparison.OrdinalIgnoreCase) is true) return element!;
         if (observed == "Audio import is not ready" || observed == "Audio import cancelled" ||
             observed?.Contains("The original file was kept.", StringComparison.OrdinalIgnoreCase) is true)

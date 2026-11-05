@@ -6,7 +6,35 @@
 2. A legacy installation with no ID, complete Azure endpoint/deployment, and protected Azure key is migrated once to `azure-openai`.
 3. Every other new configuration is saved as `local-whisper`.
 
-There is no automatic fallback. Saving Settings changes the coordinator for the next transcription and waits if one is active.
+There is no automatic fallback. Saving Settings selects the provider and endpoint for the next transcription without waiting for an active job; that job keeps its original provider and endpoint limits.
+
+## Registered transcription endpoints
+
+**Settings > Transcription** supports up to 32 named endpoint profiles. Add creates a blank profile; Duplicate copies configuration and limits but never copies its credential. Remove is available when another profile remains, and its protected credential is removed when Settings are saved. Existing Azure configuration migrates to an **Existing Azure endpoint** profile using the original DPAPI key, without requiring the key to be entered again.
+
+Each profile stores its base endpoint, deployment/model name, Azure API version, route/authentication mode, and segment-planning limits. Standard Azure mode appends the deployment transcription route; API version `v1` selects Azure's v1 route. **OpenAI-compatible route** appends `audio/transcriptions` to the configured base URL, so include the API prefix, such as `/v1/`, in that base URL. **Bearer token authentication** uses an Authorization bearer header instead of Azure's `api-key` header. Remote endpoints must use HTTPS; loopback HTTP is allowed. Route and authentication choices are independent and are not inferred from model names.
+
+| Limit | Default | Purpose |
+| --- | --- | --- |
+| Maximum output tokens | 2,000 | Segment-planning budget for the selected deployment; not sent as an unsupported API parameter |
+| Estimated tokens / minute | 600 | Conservative estimate of transcript density, configurable for language and speech |
+| Maximum segment seconds | 300 | Independent duration ceiling |
+| Maximum upload bytes | 24,000,000 | Per-file budget, configurable up to 25,000,000 with header headroom |
+| Request timeout seconds | 600 | Per-request timeout, not a whole-job or audio-duration limit |
+
+The initial duration ceiling is the minimum of the configured duration, `0.75 * maximum output tokens / estimated tokens per minute * 60`, and the upload budget expressed as 16 kHz/16-bit mono PCM. The 25% token margin is a planning heuristic, not proof that a response cannot hit its model limit. The defaults yield about 150 seconds per segment. Configure limits from the actual deployment contract; a model name containing or omitting `mini` does not establish its capacity. There is no hardcoded model catalog and no guaranteed increase in output capacity from switching to a similarly named model.
+
+If a provider returns an output-token count at or above the configured budget, or a recognized context/audio-length error, TalkToMe retries smaller sample-aligned portions. Providers without token-usage metadata still use the planning limits, but silent truncation cannot be detected reliably from nonempty text alone. Model context/prompt limits remain independent; keep vocabulary and preceding-text guidance concise.
+
+## Long audio and restart recovery
+
+Long audio is split into ordered WAV segments rather than squeezed into one MP3. Native 16 kHz/16-bit mono recordings retain their PCM samples; other mono/stereo formats are decoded and normalized to that format without another lossy codec. Short files that already fit both duration and byte budgets are uploaded unchanged. Multichannel audio is rejected explicitly.
+
+The splitter searches the final ten seconds of each full segment for a quiet boundary. Continuous speech uses a one-second overlap; ordered text assembly reconciles matching boundary phrases conservatively. This is not a guarantee that every boundary word is recognized correctly. Segment number and audio position remain visible while sending and waiting for a response. Cancel stops active transcription, and imported sources are always preserved. Recorded-audio retention continues to follow **Keep audio after failed transcription**.
+
+**Keep encrypted progress for restart** is opt-in for each profile. Completed segment text and request IDs are stored in current-user DPAPI-encrypted checkpoints under `%LOCALAPPDATA%\TalkToMe\Diagnostics\TranscriptionJobs\<profile ID>`. Re-importing the same unchanged file with the same profile configuration, language and prompt resumes completed segments, avoiding their API calls. Changing the source, profile configuration or prompt starts a separate job. Failed/cancelled jobs retain progress only when opted in; success deletes the checkpoint and temporary segment audio. Checkpoints expire after 14 days when the endpoint next runs. **Clear saved progress** deletes that profile's stored checkpoints; it does not delete source audio. Do not clear progress during an active job, which can write another checkpoint as segments complete.
+
+DPAPI protection does not isolate checkpoints from other software running as the same Windows user. Runtime logs remain transcript-, vocabulary-, prompt- and key-free. Endpoint credentials are separate current-user DPAPI secrets for each profile, and switching profiles clears an unsaved key field rather than sending it to another endpoint.
 
 ## Transcription language
 

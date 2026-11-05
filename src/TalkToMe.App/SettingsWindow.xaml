@@ -32,16 +32,49 @@
                         <Border Margin="0,14,0,0" Padding="16" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
                             <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsAzure}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style>
                             <StackPanel>
-                                <TextBlock Style="{StaticResource SectionTitleText}" Text="Azure OpenAI"/>
+                                <TextBlock Style="{StaticResource SectionTitleText}" Text="Transcription endpoints"/>
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding EndpointProfiles}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedEndpointId}" SelectionChanged="SelectEndpoint" AutomationProperties.AutomationId="EndpointProfileSelector" AutomationProperties.Name="Transcription endpoint"/>
+                                    <Button Grid.Column="1" Width="36" Height="36" Padding="0" Margin="8,0,0,0" Style="{StaticResource SecondaryButton}" Click="AddEndpoint" ToolTip="Add endpoint" AutomationProperties.AutomationId="AddEndpointButton"><TextBlock FontFamily="Segoe Fluent Icons" Text="&#xE710;"/></Button>
+                                    <Button Grid.Column="2" Width="36" Height="36" Padding="0" Margin="4,0,0,0" Style="{StaticResource SecondaryButton}" Click="DuplicateEndpoint" ToolTip="Duplicate endpoint without its credential" AutomationProperties.AutomationId="DuplicateEndpointButton"><TextBlock FontFamily="Segoe Fluent Icons" Text="&#xE8C8;"/></Button>
+                                    <Button Grid.Column="3" Width="36" Height="36" Padding="0" Margin="4,0,0,0" Style="{StaticResource DangerButton}" Click="RemoveEndpoint" IsEnabled="{Binding CanRemoveEndpoint}" ToolTip="Remove endpoint" AutomationProperties.AutomationId="RemoveEndpointButton"><TextBlock FontFamily="Segoe Fluent Icons" Text="&#xE74D;"/></Button>
+                                </Grid>
+                                <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Profile name"/>
+                                <TextBox Text="{Binding EndpointName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="EndpointNameTextBox"/>
                                 <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Endpoint"/>
                                 <TextBox Text="{Binding AzureEndpoint, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="AzureEndpointTextBox"/>
                                 <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="Deployment"/>
                                 <TextBox Text="{Binding AzureDeployment, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="AzureDeploymentTextBox"/>
                                 <TextBlock Margin="0,10,0,5" Style="{StaticResource FieldLabel}" Text="API version"/>
                                 <TextBox Text="{Binding AzureApiVersion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.AutomationId="AzureApiVersionTextBox"/>
+                                <CheckBox Margin="0,12,0,0" Content="OpenAI-compatible route" IsChecked="{Binding OpenAiCompatibleRoute}" ToolTip="Use an API base URL ending in /v1; requests go to audio/transcriptions. Unchecked uses the Azure deployment route." AutomationProperties.AutomationId="OpenAiRouteCheckBox"/>
+                                <CheckBox Margin="0,8,0,0" Content="Bearer token authentication" IsChecked="{Binding BearerAuthentication}" ToolTip="Unchecked sends the protected credential in the api-key header." AutomationProperties.AutomationId="BearerAuthenticationCheckBox"/>
                                 <DockPanel Margin="0,10,0,5"><TextBlock Style="{StaticResource FieldLabel}" Text="API key"/><TextBlock HorizontalAlignment="Right" Text="{Binding AzureSecretStatus}" AutomationProperties.AutomationId="ApiKeyStatusText" AutomationProperties.Name="{Binding AzureSecretStatus}"/></DockPanel>
                                 <PasswordBox x:Name="ApiKeyPasswordBox" AutomationProperties.AutomationId="ApiKeyPasswordBox" AutomationProperties.Name="Replace Azure API key"/>
                                 <Button Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource DangerButton}" Content="Remove Azure key" Click="RemoveAzureKey" AutomationProperties.AutomationId="RemoveApiKeyButton"/>
+                                <Expander Margin="0,16,0,0" Header="Segment limits" IsExpanded="True">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Maximum output tokens"/>
+                                            <TextBlock Grid.Column="2" Style="{StaticResource FieldLabel}" Text="Estimated tokens / minute"/>
+                                            <TextBox Grid.Row="1" Margin="0,5,0,12" Text="{Binding MaximumOutputTokens, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" ToolTip="Planning budget from the endpoint's documented model limit; not sent as an unsupported API parameter." AutomationProperties.AutomationId="MaximumOutputTokensTextBox"/>
+                                            <TextBox Grid.Row="1" Grid.Column="2" Margin="0,5,0,12" Text="{Binding EstimatedTokensPerMinute, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" ToolTip="Conservative speech-density estimate. Segment planning uses 75% of the output-token budget." AutomationProperties.AutomationId="EstimatedTokensPerMinuteTextBox"/>
+                                            <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Maximum segment seconds"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource FieldLabel}" Text="Maximum upload bytes"/>
+                                            <TextBox Grid.Row="3" Margin="0,5,0,12" Text="{Binding MaximumSegmentSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" AutomationProperties.AutomationId="MaximumSegmentSecondsTextBox"/>
+                                            <TextBox Grid.Row="3" Grid.Column="2" Margin="0,5,0,12" Text="{Binding MaximumUploadBytes, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" AutomationProperties.AutomationId="MaximumUploadBytesTextBox"/>
+                                            <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Request timeout seconds"/>
+                                            <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource FieldLabel}" Text="Planned segment ceiling"/>
+                                            <TextBox Grid.Row="5" Margin="0,5,0,0" Text="{Binding RequestTimeoutSeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" AutomationProperties.AutomationId="RequestTimeoutSecondsTextBox"/>
+                                            <TextBlock Grid.Row="5" Grid.Column="2" Margin="0,5,0,0" VerticalAlignment="Center" Text="{Binding SegmentPlanText}" AutomationProperties.AutomationId="SegmentPlanText"/>
+                                        </Grid>
+                                        <CheckBox Margin="0,14,0,0" Content="Keep encrypted partial transcripts for resume" IsChecked="{Binding RetainProgress}" ToolTip="Current-user DPAPI protection. Completed jobs are removed; interrupted jobs expire after 14 days." AutomationProperties.AutomationId="RetainTranscriptionProgressCheckBox"/>
+                                        <Button Margin="0,8,0,0" HorizontalAlignment="Left" Style="{StaticResource SecondaryButton}" Content="Clear saved progress" Click="ClearProgress" AutomationProperties.AutomationId="ClearTranscriptionProgressButton"/>
+                                    </StackPanel>
+                                </Expander>
                             </StackPanel>
                         </Border>
 

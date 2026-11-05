@@ -87,12 +87,26 @@ public partial class MainWindow : Window
 
     private void HideToTray(object sender, RoutedEventArgs e) => Hide();
 
+    private void OpenDiagnostics(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string directory = System.IO.Path.GetDirectoryName(RuntimeDiagnostics.LogPath)!;
+            System.IO.Directory.CreateDirectory(directory);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(directory) { UseShellExecute = true });
+        }
+        catch (Exception exception) when (exception is System.IO.IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            _viewModel.ShowProviderStatus($"Could not open diagnostics: {exception.Message}");
+        }
+    }
+
     private async void OpenAudioFile(object sender, RoutedEventArgs e)
     {
         Microsoft.Win32.OpenFileDialog dialog = new()
         {
             Title = "Open audio file",
-            Filter = "Audio files|*.wav;*.mp3;*.m4a;*.mp4;*.mpeg;*.mpga;*.webm;*.flac|All files|*.*",
+            Filter = "Audio files|*.wav;*.mp3;*.m4a;*.m4b;*.mp4;*.mpeg;*.mpga;*.webm;*.flac|All files|*.*",
             CheckFileExists = true,
             Multiselect = false,
         };

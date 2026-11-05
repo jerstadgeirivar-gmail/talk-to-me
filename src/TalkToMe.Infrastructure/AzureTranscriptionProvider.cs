@@ -23,26 +23,47 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
         _httpClient.Timeout = Timeout.InfiniteTimeSpan;
     }
 
-    public async Task<TranscriptionResult> TranscribeAsync(
+    public Task<TranscriptionResult> TranscribeAsync(
+        RecordedAudio audio,
+        TranscriptionContext context,
+        CancellationToken cancellationToken)
+    {
+        TranscriptionEndpointProfile profile = _options.Profile ?? new TranscriptionEndpointProfile
+        {
+            Id = TranscriptionEndpointProfile.LegacyId,
+            Endpoint = _options.Endpoint.AbsoluteUri,
+            Deployment = _options.Deployment,
+            ApiVersion = _options.ApiVersion,
+        };
+        return new AudioSegmentTranscriber(profile).TranscribeAsync(audio, context, TranscribeSingleAsync, cancellationToken);
+    }
+
+    private async Task<TranscriptionResult> TranscribeSingleAsync(
         RecordedAudio audio,
         TranscriptionContext context,
         CancellationToken cancellationToken)
     {
         ValidateAudio(audio);
-        context.Progress?.Report("Preparing audio");
-        using PreparedAzureAudio preparedAudio = await AzureAudioUploadPreparer.PrepareAsync(
-            audio,
-            context.Progress,
-            cancellationToken);
-        ValidatePreparedAudio(preparedAudio);
+        long uploadBytes = new FileInfo(audio.FilePath).Length;
+        long maximumBytes = _options.Profile?.MaximumUploadBytes ?? 24_000_000;
+        if (uploadBytes > maximumBytes)
+            throw new TranscriptionException(TranscriptionFailureCategory.RequestTooLarge, "The audio segment exceeds the endpoint's configured upload limit.");
+        string contentType = Path.GetExtension(audio.FilePath).ToLowerInvariant() switch
+        {
+            ".mp3" or ".mpga" or ".mpeg" => "audio/mpeg",
+            ".m4a" or ".mp4" or ".m4b" => "audio/mp4",
+            ".webm" => "audio/webm",
+            ".flac" => "audio/flac",
+            _ => "audio/wav",
+        };
 
         context.Progress?.Report("Sending audio");
         Uri requestUri = BuildRequestUri();
         using MultipartFormDataContent content = new();
-        await using FileStream audioStream = File.OpenRead(preparedAudio.FilePath);
+        await using FileStream audioStream = File.OpenRead(audio.FilePath);
         using StreamContent fileContent = new(audioStream);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue(preparedAudio.ContentType);
-        content.Add(fileContent, "file", preparedAudio.FileName);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        content.Add(fileContent, "file", Path.GetFileName(audio.FilePath));
         content.Add(new StringContent(_options.Deployment), "model");
         content.Add(new StringContent("json"), "response_format");
         if (!string.IsNullOrWhiteSpace(context.Language))
@@ -56,11 +77,15 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
         }
 
         using HttpRequestMessage request = new(HttpMethod.Post, requestUri) { Content = content };
-        request.Headers.Add("api-key", _options.ApiKey);
+        if (_options.Profile?.BearerAuthentication is true)
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.ApiKey);
+        else
+            request.Headers.Add("api-key", _options.ApiKey);
         using CancellationTokenSource timeoutCancellation =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCancellation.CancelAfter(_options.Timeout);
         Stopwatch stopwatch = Stopwatch.StartNew();
+        RuntimeDiagnostics.Write("azure.request.started", new { deployment = _options.Deployment, apiVersion = _options.ApiVersion, uploadBytes, contentType, timeoutSeconds = _options.Timeout.TotalSeconds });
 
         try
         {
@@ -69,11 +94,11 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
                 HttpCompletionOption.ResponseHeadersRead,
                 timeoutCancellation.Token);
             context.Progress?.Report("Waiting for transcription");
-            stopwatch.Stop();
             string? requestId = GetRequestId(response);
+            RuntimeDiagnostics.Write("azure.response.received", new { statusCode = (int)response.StatusCode, requestId, elapsedSeconds = stopwatch.Elapsed.TotalSeconds });
             if (!response.IsSuccessStatusCode)
             {
-                throw CreateResponseException(response);
+                throw await CreateResponseExceptionAsync(response, timeoutCancellation.Token);
             }
 
             AzureTranscriptionResponse? payload = await response.Content.ReadFromJsonAsync(
@@ -86,6 +111,12 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
                     "Azure returned a transcription response without text.");
             }
 
+            if (_options.Profile is { } profile && payload.Usage?.OutputTokens >= profile.MaximumOutputTokens)
+                throw new TranscriptionException(TranscriptionFailureCategory.OutputLimitExceeded,
+                    "The transcription reached the endpoint's configured output-token limit.");
+
+                    stopwatch.Stop();
+                    RuntimeDiagnostics.Write("azure.request.completed", new { requestId, elapsedSeconds = stopwatch.Elapsed.TotalSeconds, characters = payload.Text.Length, outputTokens = payload.Usage?.OutputTokens });
             return new TranscriptionResult(
                 NormalizeLineEndings(payload.Text),
                 stopwatch.Elapsed,
@@ -93,6 +124,7 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
+            RuntimeDiagnostics.Write("azure.request.timeout", new { elapsedSeconds = stopwatch.Elapsed.TotalSeconds });
             throw new TranscriptionException(
                 TranscriptionFailureCategory.Timeout,
                 "Azure transcription timed out. The audio was retained for retry.",
@@ -133,19 +165,11 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
 
     }
 
-    private static void ValidatePreparedAudio(PreparedAzureAudio audio)
-    {
-        if (audio.FileSizeBytes > AzureTranscriptionOptions.MaximumAudioBytes)
-        {
-            throw new TranscriptionException(
-                TranscriptionFailureCategory.RequestTooLarge,
-                "The prepared recording exceeds Azure's 25 MB request limit.");
-        }
-    }
-
     private Uri BuildRequestUri()
     {
         Uri baseUri = new(_options.Endpoint.AbsoluteUri.TrimEnd('/') + "/");
+        if (_options.Profile?.OpenAiCompatibleRoute is true)
+            return new Uri(baseUri, "audio/transcriptions");
         string relativePath = UsesV1Route()
             ? $"openai/v1/audio/transcriptions?api-version={Uri.EscapeDataString(_options.ApiVersion)}"
             : $"openai/deployments/{Uri.EscapeDataString(_options.Deployment)}/audio/transcriptions" +
@@ -156,7 +180,7 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
     private bool UsesV1Route() =>
         _options.ApiVersion.Equals("v1", StringComparison.OrdinalIgnoreCase);
 
-    private static TranscriptionException CreateResponseException(HttpResponseMessage response)
+    private async Task<TranscriptionException> CreateResponseExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         TranscriptionFailureCategory category = response.StatusCode switch
         {
@@ -170,7 +194,8 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
             >= HttpStatusCode.InternalServerError => TranscriptionFailureCategory.Server,
             _ => TranscriptionFailureCategory.Unknown,
         };
-        TimeSpan? retryAfter = response.Headers.RetryAfter?.Delta;
+        TimeSpan? retryAfter = response.Headers.RetryAfter?.Delta ??
+            (response.Headers.RetryAfter?.Date is { } retryDate ? retryDate - DateTimeOffset.UtcNow : null);
         string message = category switch
         {
             TranscriptionFailureCategory.Authentication => "Azure rejected the configured API key.",
@@ -183,7 +208,32 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
             TranscriptionFailureCategory.Server => "Azure transcription is temporarily unavailable.",
             _ => $"Azure transcription failed with HTTP {(int)response.StatusCode}.",
         };
-        return new TranscriptionException(category, message, response.StatusCode, retryAfter);
+        string? errorCode = null;
+        try
+        {
+            using StreamReader reader = new(await response.Content.ReadAsStreamAsync(cancellationToken));
+            char[] buffer = new char[8192];
+            int count = await reader.ReadBlockAsync(buffer.AsMemory(), cancellationToken);
+            using JsonDocument document = JsonDocument.Parse(new string(buffer, 0, count));
+            if (document.RootElement.TryGetProperty("error", out JsonElement error) &&
+                error.ValueKind == JsonValueKind.Object &&
+                error.TryGetProperty("code", out JsonElement code) && code.ValueKind == JsonValueKind.String)
+            {
+                string value = code.GetString() ?? string.Empty;
+                if (value.Length <= 128 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.'))
+                    errorCode = value.Replace(_options.ApiKey, "[redacted]", StringComparison.Ordinal);
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        string? requestId = GetRequestId(response);
+        if (errorCode is "context_length_exceeded" or "max_tokens_exceeded" or "audio_too_long")
+            category = TranscriptionFailureCategory.OutputLimitExceeded;
+        RuntimeDiagnostics.Write("azure.request.rejected", new { category = category.ToString(), statusCode = (int)response.StatusCode, requestId, errorCode, retryAfterSeconds = retryAfter?.TotalSeconds });
+        string details = $" HTTP {(int)response.StatusCode}" + (errorCode is null ? "." : $" ({errorCode}).");
+        if (requestId is not null) details += $" Request ID: {requestId}.";
+        return new TranscriptionException(category, message + details, response.StatusCode, retryAfter);
     }
 
     private static string? GetRequestId(HttpResponseMessage response)
@@ -205,7 +255,11 @@ public sealed partial class AzureTranscriptionProvider : ITranscriptionProvider
             .Replace("\n", Environment.NewLine, StringComparison.Ordinal);
 
     private sealed record AzureTranscriptionResponse(
-        [property: System.Text.Json.Serialization.JsonPropertyName("text")] string Text);
+        [property: System.Text.Json.Serialization.JsonPropertyName("text")] string Text,
+        [property: System.Text.Json.Serialization.JsonPropertyName("usage")] AzureTranscriptionUsage? Usage);
+
+    private sealed record AzureTranscriptionUsage(
+        [property: System.Text.Json.Serialization.JsonPropertyName("output_tokens")] int? OutputTokens);
 
     [System.Text.Json.Serialization.JsonSerializable(typeof(AzureTranscriptionResponse))]
     private sealed partial class AzureTranscriptionJsonContext :

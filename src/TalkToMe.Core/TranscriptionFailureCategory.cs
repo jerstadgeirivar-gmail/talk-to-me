@@ -21,4 +21,5 @@ public enum TranscriptionFailureCategory
     InsufficientMemory,
     Server,
     Unknown,
+    OutputLimitExceeded,
 }
